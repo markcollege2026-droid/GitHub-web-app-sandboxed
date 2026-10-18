@@ -35,7 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Verify the committed Gradle wrapper jar
         run: |
@@ -43,23 +43,79 @@ jobs:
           sha256sum -c gradle/wrapper/gradle-wrapper.jar.sha256
 
       - name: Validate the wrapper against Gradle's known-good checksums
-        uses: gradle/actions/wrapper-validation@v4
+        uses: gradle/actions/wrapper-validation@v6
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Run unit tests
-        run: ./gradlew --no-daemon :app:testDebugUnitTest --stacktrace
+        shell: bash
+        run: |
+          set +e
+          ./gradlew --no-daemon :app:testDebugUnitTest --stacktrace > /tmp/gradle-unit.log 2>&1
+          result=$?
+          set -e
+          cat /tmp/gradle-unit.log
+          if [ "$result" -ne 0 ]; then
+            python3 - <<'PY'
+          from pathlib import Path
+          def esc(text):
+              return text.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+          lines = Path('/tmp/gradle-unit.log').read_text(errors='replace').splitlines()
+          detail = '\n'.join(lines[-80:])
+          print(f"::error title=Gradle unit-test task failed::{esc(detail)}")
+          PY
+            exit "$result"
+          fi
+
+      - name: Summarise unit test failures as annotations
+        if: always()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import glob, os, re, xml.etree.ElementTree as ET
+          def esc(text):
+              return text.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+          def trim(text, limit=1800):
+              text = (text or '').strip()
+              return text if len(text) <= limit else text[:limit] + ' ...'
+          total = failures = emitted = 0
+          for path in sorted(glob.glob('app/build/test-results/testDebugUnitTest/TEST-*.xml')):
+              try:
+                  root = ET.parse(path).getroot()
+              except ET.ParseError:
+                  continue
+              for case in root.iter('testcase'):
+                  total += 1
+                  problem = case.find('failure')
+                  if problem is None:
+                      problem = case.find('error')
+                  if problem is None:
+                      continue
+                  failures += 1
+                  if emitted < 12:
+                      emitted += 1
+                      title = f"{case.get('classname', '?').split('.')[-1]}.{case.get('name', '?')}"
+                      message = (problem.get('message') or '') + '\n' + (problem.text or '')
+                      print(f"::error title={esc(title)}::{esc(trim(message))}")
+          print(f"::notice title=JVM unit tests::{total} test cases reported, {failures} failed")
+          if total == 0 and os.path.exists('/tmp/gradle-unit.log'):
+              log = open('/tmp/gradle-unit.log', errors='replace').read()
+              interesting = [line for line in log.splitlines() if re.search(
+                  r'error:|FAILED|What went wrong|Execution failed|Exception|Could not|No tests', line)]
+              detail = '\n'.join(interesting[-40:]) or log[-6000:]
+              print(f"::error title=Unit-test task produced no XML results::{esc(trim(detail, 6000))}")
+          PY
 
       - name: Publish unit test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: unit-test-results
           path: |
@@ -74,16 +130,16 @@ jobs:
     needs: unit-tests
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Install an optional release-signing key
         env:
@@ -109,13 +165,30 @@ jobs:
           echo "Installed the optional PKCS12 release key from a GitHub secret."
 
       - name: Build debug and release APKs
+        shell: bash
         env:
           # These are optional. Without all values, the release variant stays unsigned; the debug APK
           # is signed with Android's standard debug key and is the installable CI artifact.
           SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
           SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
           SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
-        run: ./gradlew --no-daemon :app:assembleDebug :app:assembleRelease --stacktrace
+        run: |
+          set +e
+          ./gradlew --no-daemon :app:assembleDebug :app:assembleRelease --stacktrace > /tmp/gradle-apk-build.log 2>&1
+          result=$?
+          set -e
+          cat /tmp/gradle-apk-build.log
+          if [ "$result" -ne 0 ]; then
+            python3 - <<'PY'
+          from pathlib import Path
+          def esc(text):
+              return text.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+          lines = Path('/tmp/gradle-apk-build.log').read_text(errors='replace').splitlines()
+          detail = '\n'.join(lines[-80:])
+          print(f"::error title=Gradle APK build failed::{esc(detail)}")
+          PY
+            exit "$result"
+          fi
 
       - name: Verify the release APK
         run: |
@@ -162,7 +235,7 @@ jobs:
           cat APK-SHA256SUMS.txt
 
       - name: Upload APKs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: github-webview-apk
           path: |
@@ -179,16 +252,16 @@ jobs:
     needs: unit-tests
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Enable KVM for the emulator
         run: |
@@ -296,7 +369,7 @@ jobs:
 
       - name: Publish instrumented test evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: instrumented-test-evidence
           path: |
@@ -315,10 +388,10 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Download the built APKs
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: github-webview-apk
           path: dist
