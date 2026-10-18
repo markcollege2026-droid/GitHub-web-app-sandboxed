@@ -12,7 +12,7 @@ The interface is GitHub itself, rendered in one Android WebView. The wrapper doe
 
 ## Current verification status
 
-The latest successful [GitHub Actions run](https://github.com/markcollege2026-droid/GitHub-web-app-sandboxed/actions/runs/39168265984) passed 2,445 JVM test cases, 54 API 34 WebView/emulator test cases, and the debug/release APK build. It published the `github-webview-apk` artifact. The login DOM smoke probe reached GitHub's same-origin form but submitted no credentials. See [TEST_REPORT.md](TEST_REPORT.md) for exact results and limitations. Local Gradle tests/builds could not start because this workspace has no JDK.
+The verified [GitHub Actions run](https://github.com/markcollege2026-droid/GitHub-web-app-sandboxed/actions/runs/39168860352) passed 2,445 JVM test cases, 54 API 34 WebView/emulator test cases, and the debug/release APK build. It published the `github-webview-apk` artifact. The login DOM smoke probe reached GitHub's same-origin form but submitted no credentials. See [TEST_REPORT.md](TEST_REPORT.md) for exact results and limitations. Local Gradle tests/builds could not start because this workspace has no JDK.
 
 ## What works by policy
 

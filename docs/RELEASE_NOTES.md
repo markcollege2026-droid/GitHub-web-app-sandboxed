@@ -13,7 +13,7 @@ This is the initial GitHub-specific conversion of the existing hardened Arena We
 
 ## Verification
 
-[GitHub Actions run 39168265984](https://github.com/markcollege2026-droid/GitHub-web-app-sandboxed/actions/runs/39168265984) passed 2,445 JVM test cases, 54 API 34 instrumented WebView cases, and the debug/release APK build. It verified APK badging and the debug APK signature, then published the `github-webview-apk` artifact with APK checksums and badging output. The public homepage and login DOM probes ran without submitting credentials. See `TEST_REPORT.md` for results and limitations.
+[GitHub Actions run 39168860352](https://github.com/markcollege2026-droid/GitHub-web-app-sandboxed/actions/runs/39168860352) passed 2,445 JVM test cases, 54 API 34 instrumented WebView cases, and the debug/release APK build. It verified APK badging and the debug APK signature, then published the `github-webview-apk` artifact with APK checksums and badging output. The public homepage and login DOM probes ran without submitting credentials. See `TEST_REPORT.md` for results and limitations.
 
 ## Known limitations
 

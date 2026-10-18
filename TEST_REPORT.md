@@ -1,18 +1,18 @@
 # Test report — GitHub WebView (Locked)
 
-## Latest GitHub Actions result
+## Verified GitHub Actions result
 
-**Passed:** [Android CI run 39168265984](https://github.com/markcollege2026-droid/GitHub-web-app-sandboxed/actions/runs/39168265984), on commit `2b6f696` (`Allow observed GitHub favicons and narrow login smoke checks`). All blocking jobs completed successfully; the tag-only release job was skipped, as expected.
+**Passed:** [Android CI run 39168860352](https://github.com/markcollege2026-droid/GitHub-web-app-sandboxed/actions/runs/39168860352), on commit `9e17807` (`Document successful GitHub Actions verification`). All blocking jobs completed successfully; the tag-only release job was skipped, as expected.
 
 | Check | Result |
 | --- | --- |
 | JVM unit/security tests | **Passed — 2,445 test cases, 0 failures.** Includes URL policy/fuzz, host-role/path regression, egress proxy, manifest/network configuration, `adjustResize`, user-agent, and source invariants. |
 | Android WebView/emulator tests | **Passed — 54 test cases, 0 failures** on an API 34 x86_64 Google APIs / Pixel 5 emulator. |
 | Debug and release APK build | **Passed.** The workflow verified package badging, version, INTERNET permission, absence of camera/location/storage/contacts permissions, non-debuggable release manifest, a single launcher activity, and the debug APK signature. |
-| APK artifact | **Published:** `github-webview-apk` (2,143,053-byte artifact archive). It contains the debug and release APKs, APK SHA-256 checksums, and release badging output. Download it from the linked Actions run's Artifacts section. |
+| APK artifact | **Published:** `github-webview-apk` (2,143,060-byte artifact archive). It contains the debug and release APKs, APK SHA-256 checksums, and release badging output. Download it from the linked Actions run's Artifacts section. |
 | Instrumented evidence | **Published:** `instrumented-test-evidence`, including emulator test output and device logs/screenshots. |
 
-The debug APK's signature was verified with `apksigner`. Release signing is optional and depends on repository secrets; this report does not claim that the release APK is signed. The artifact archive's API digest is `sha256:a47b5e8d14794fed73c3359c2ff83d86d9dab4e24608bb70d83e7a876ccbaea4` (this is the ZIP digest, not an individual APK checksum).
+The debug APK's signature was verified with `apksigner`. Release signing is optional and depends on repository secrets; this report does not claim that the release APK is signed. The artifact archive's API digest is `sha256:9e4714bd9694d2baeffadb1058bcd0e6f3656f16665f187988dbf35627572ae0` (this is the ZIP digest, not an individual APK checksum).
 
 ## Live WebView observations from the emulator run
 
