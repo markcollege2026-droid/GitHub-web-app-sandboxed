@@ -346,7 +346,7 @@ public class EgressProxyTest {
                 public void run() {
                     try (Socket client = open()) {
                         assertEquals("HTTP/1.1 200 Connection established",
-                                send(client, "CONNECT auth.github.com:443 HTTP/1.1\r\n\r\n"));
+                                send(client, "CONNECT github.com:443 HTTP/1.1\r\n\r\n"));
                         String payload = "payload-" + id;
                         client.getOutputStream().write(payload.getBytes(StandardCharsets.US_ASCII));
                         client.getOutputStream().flush();
