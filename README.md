@@ -21,7 +21,7 @@ The page-capable host is **only** `github.com`. This covers normal GitHub web pa
 | Exact host | Role | Path scope | Purpose |
 | --- | --- | --- | --- |
 | `github.com` | `PRODUCT` | Any path | Visible pages, same-origin authentication, repositories and web workflows |
-| `github.githubassets.com` | `ASSET` only | `/assets/` | GitHub JavaScript, CSS, fonts, and static images |
+| `github.githubassets.com` | `ASSET` only | `/assets/`, `/favicons/` | GitHub JavaScript, CSS, fonts, and observed login/site icons |
 | `opengraph.githubassets.com` | `ASSET` only | Exact host; opaque image paths | Repository/social preview images |
 | `avatars.githubusercontent.com` | `ASSET` only | Exact host; opaque image paths | User and organization avatars |
 | `user-images.githubusercontent.com` | `ASSET` only | Exact host; opaque image paths | User-uploaded repository, issue, and PR images |

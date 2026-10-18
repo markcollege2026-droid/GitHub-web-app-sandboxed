@@ -277,7 +277,8 @@ public final class PolicyCases {
         sub(cases, "GitHub JavaScript bundle", "https://github.githubassets.com/assets/app-0123.js", true, null);
         sub(cases, "GitHub CSS bundle", "https://github.githubassets.com/assets/github-0123.css", true, null);
         sub(cases, "GitHub font bundle", "https://github.githubassets.com/assets/font-0123.woff2", true, null);
-        sub(cases, "GitHub static asset outside the reviewed path", "https://github.githubassets.com/not-assets/app.js", false,
+        sub(cases, "GitHub login favicon observed on device", "https://github.githubassets.com/favicons/favicon-dark.svg", true, null);
+        sub(cases, "GitHub static asset outside the reviewed paths", "https://github.githubassets.com/not-assets/app.js", false,
                 BlockReason.PATH_NOT_ALLOWED);
         doc(cases, "GitHub asset CDN can never become a page", "https://github.githubassets.com/assets/app.js", false,
                 BlockReason.DOCUMENT_NOT_ALLOWED);

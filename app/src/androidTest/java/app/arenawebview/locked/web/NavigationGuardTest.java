@@ -53,6 +53,8 @@ public class NavigationGuardTest {
         assertNull(client.shouldInterceptRequest(webView,
                 FakeWebResourceRequest.subresource("https://github.githubassets.com/assets/app.js")));
         assertNull(client.shouldInterceptRequest(webView,
+                FakeWebResourceRequest.subresource("https://github.githubassets.com/favicons/favicon-dark.svg")));
+        assertNull(client.shouldInterceptRequest(webView,
                 FakeWebResourceRequest.subresource("https://avatars.githubusercontent.com/u/583231?v=4")));
     }
 

@@ -18,6 +18,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import app.arenawebview.locked.policy.BlockReason;
 import app.arenawebview.locked.policy.GitHubAllowlist;
 import app.arenawebview.locked.policy.PolicyMetrics;
 
@@ -84,17 +85,20 @@ public class GitHubLoginLiveTest {
             assertTrue("the form must post to GitHub's same-origin session handler: " + probe,
                     probe.contains("github.com/session"));
 
-            List<String> refused = refusedAllowListedHosts();
-            assertTrue("an active allow-listed host must not be blocked while GitHub login loads: " + refused,
-                    refused.isEmpty());
+            List<String> unexpected = unexpectedRefusalsFromReviewedHosts();
+            assertTrue("a reviewed GitHub host must not be refused for a host/role mismatch: " + unexpected,
+                    unexpected.isEmpty());
         }
     }
 
-    private static List<String> refusedAllowListedHosts() {
+    private static List<String> unexpectedRefusalsFromReviewedHosts() {
         List<String> refused = new ArrayList<String>();
         for (PolicyMetrics.BlockEvent event : PolicyMetrics.get().recentBlocks()) {
             String host = event.host();
-            if (!host.isEmpty() && GitHubAllowlist.thirdPartyHosts().contains(host)) {
+            // A known GitHub host may still request an intentionally unapproved path (for example,
+            // the observed private browser-stats telemetry route). Those requests must fail closed.
+            if (!host.isEmpty() && GitHubAllowlist.thirdPartyHosts().contains(host)
+                    && event.reason() != BlockReason.PATH_NOT_ALLOWED) {
                 refused.add(event.describe());
             }
         }

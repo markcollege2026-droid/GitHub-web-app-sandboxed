@@ -69,8 +69,8 @@ public final class GitHubAllowlist {
      */
     public static List<AllowEntry> resourceEntries() {
         List<AllowEntry> entries = new ArrayList<AllowEntry>();
-        entries.add(AllowEntry.resourceOnly("github.githubassets.com", paths("/assets/"),
-                "GitHub's observed JavaScript, CSS, fonts, and static images under /assets/."));
+        entries.add(AllowEntry.resourceOnly("github.githubassets.com", paths("/assets/", "/favicons/"),
+                "GitHub's JavaScript/CSS/font assets under /assets/ and static site icons under /favicons/."));
         entries.add(AllowEntry.resourceOnly("opengraph.githubassets.com", Collections.<String>emptyList(),
                 "GitHub-generated repository/social-preview images; opaque digest and repository paths."));
         entries.add(AllowEntry.resourceOnly("avatars.githubusercontent.com", Collections.<String>emptyList(),

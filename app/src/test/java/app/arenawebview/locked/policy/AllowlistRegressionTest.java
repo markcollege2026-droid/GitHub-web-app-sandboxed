@@ -84,10 +84,13 @@ public class AllowlistRegressionTest {
     public void onlyTheReviewedGithubAssetAndApiPathsArePinned() {
         PolicyConfig config = GitHubAllowlist.productionConfig();
         AllowEntry staticAssets = config.findByHost("github.githubassets.com");
-        assertEquals(Collections.singletonList("/assets/"), staticAssets.pathPrefixes());
+        assertEquals(Arrays.asList("/assets/", "/favicons/"), staticAssets.pathPrefixes());
         assertTrue(config.evaluateRequest("https://github.githubassets.com/assets/app.js").isAllowed());
         assertTrue(config.evaluateRequest("https://github.githubassets.com/assets").isAllowed());
+        assertTrue(config.evaluateRequest("https://github.githubassets.com/favicons/favicon-dark.svg").isAllowed());
         assertFalse(config.evaluateRequest("https://github.githubassets.com/other/app.js").isAllowed());
+        assertFalse(config.evaluateRequest("https://github.githubassets.com/favicons-old/favicon.svg").isAllowed());
+        assertFalse(config.evaluateRequest("https://github.githubassets.com/favicons/../private/app.js").isAllowed());
 
         AllowEntry api = config.findByHost("api.github.com");
         assertEquals(Arrays.asList("/repos/", "/orgs/", "/users/", "/user/", "/notifications/",

@@ -13,7 +13,7 @@ Only `github.com` has the `PRODUCT` role and can be a top-level page. Supporting
 | Host | Role | Scope / purpose |
 | --- | --- | --- |
 | `github.com` | PRODUCT | Any HTTPS path on port 443; browser app, same-origin login, repository and web workflow pages |
-| `github.githubassets.com` | ASSET | `/assets/` only; static scripts/styles/fonts/images |
+| `github.githubassets.com` | ASSET | `/assets/` and `/favicons/` only; static scripts/styles/fonts/images and observed site icons |
 | `api.github.com` | ASSET | `/repos/`, `/orgs/`, `/users/`, `/user/`, `/notifications/`, `/search/`, `/graphql/`, `/rate_limit/` (exact route roots also match) |
 | `opengraph.githubassets.com` | ASSET | Exact host; repository preview images |
 | `avatars.githubusercontent.com` | ASSET | Exact host; avatars |
@@ -28,7 +28,7 @@ The policy requires redirects and page destinations to pass normal URL role chec
 
 ## Evidence quality and remaining decisions
 
-The domain set is deliberately smaller than GitHub's published broad infrastructure metadata. Prior review used captured GitHub markup and an observed login page. Markup references, preconnect hints, and Open Graph tags are evidence to investigate, not proof that a host is required during an authenticated workflow. In particular, the `github-cloud.s3.amazonaws.com` reference has not been shown necessary by a successful live upload/download session; it is exact-host and resource-only, but should be removed if live traffic shows it is unnecessary. API path prefixes are also a deliberate narrow starting scope, not a claim that every GitHub page has been exercised.
+The domain set is deliberately smaller than GitHub's published broad infrastructure metadata. Captured markup was supplemented by an emulator run that reached `github.com/login` and confirmed the username, password, and same-origin `/session` form fields. That run observed GitHub icons under `github.githubassets.com/favicons/`; this exact resource path was added alongside `/assets/`. It also observed `api.github.com/_private/browser/stats`, which remains blocked as nonessential telemetry, plus third-party analytics/marketing requests that remain blocked. Markup references, preconnect hints, and Open Graph tags are evidence to investigate, not proof that a host is required during an authenticated workflow. In particular, the `github-cloud.s3.amazonaws.com` reference has not been shown necessary by a successful live upload/download session; it is exact-host and resource-only, but should be removed if live traffic shows it is unnecessary. API path prefixes are also a deliberate narrow starting scope, not a claim that every GitHub page has been exercised.
 
 No authenticated workflow has been run in this checkout. The same-origin login page is allowed, but external identity-provider redirects are intentionally blocked. Organization SAML/SSO, passkeys, 2FA, upload/download, release assets, and challenge behavior remain unverified. The login test is designed only to inspect the login DOM and never enters credentials. The input/keyboard resize fix is preserved in manifest/activity source but has not been tested with a visible IME here.
 
