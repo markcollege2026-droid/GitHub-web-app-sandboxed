@@ -1,0 +1,338 @@
+name: Android CI
+
+# Builds, tests and (on a version tag) releases the locked-down GitHub WebView wrapper.
+#
+# Jobs
+#   unit-tests          - the security core on the JVM: URL policy, allow-list, back navigation,
+#                         manifest/network-config and source invariants. Fast and blocking.
+#   build-apk           - debug + release APKs, plus a verification pass over the *shipped* APK
+#                         (badging: package name, permissions, not debuggable, minSdk).
+#   instrumented-tests  - the same guards on a real Android emulator with a real WebView.
+#                         Not a dependency of the release job, so emulator flakiness can never block
+#                         a build - but it is reported honestly (red means red).
+#   release             - attaches the APK and its checksum to a GitHub Release when a v* tag is pushed.
+
+on:
+  push:
+    branches:
+      - main
+      - 'arena/**'
+    tags:
+      - 'v*'
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  unit-tests:
+    name: Unit tests (JVM)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify the committed Gradle wrapper jar
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          sha256sum -c gradle/wrapper/gradle-wrapper.jar.sha256
+
+      - name: Validate the wrapper against Gradle's known-good checksums
+        uses: gradle/actions/wrapper-validation@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Run unit tests
+        run: ./gradlew --no-daemon :app:testDebugUnitTest --stacktrace
+
+      - name: Publish unit test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results
+          path: |
+            app/build/reports/tests/testDebugUnitTest/**
+            app/build/test-results/testDebugUnitTest/**
+          if-no-files-found: warn
+          retention-days: 30
+
+  build-apk:
+    name: Build APK
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Install an optional release-signing key
+        env:
+          SIGNING_KEYSTORE_BASE64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SIGNING_KEYSTORE_BASE64:-}" ]; then
+            if [ -n "${SIGNING_STORE_PASSWORD:-}${SIGNING_KEY_ALIAS:-}${SIGNING_KEY_PASSWORD:-}" ]; then
+              echo "Signing passwords/alias are set but SIGNING_KEYSTORE_BASE64 is missing." >&2
+              exit 1
+            fi
+            echo "No release key configured: debug APK is installable; release APK is unsigned."
+            exit 0
+          fi
+          key="$RUNNER_TEMP/github-release-signing.p12"
+          printf '%s' "$SIGNING_KEYSTORE_BASE64" | base64 --decode > "$key"
+          chmod 600 "$key"
+          echo "SIGNING_KEYSTORE_PATH=$key" >> "$GITHUB_ENV"
+          echo "SIGNING_STORE_TYPE=PKCS12" >> "$GITHUB_ENV"
+          echo "Installed the optional PKCS12 release key from a GitHub secret."
+
+      - name: Build debug and release APKs
+        env:
+          # These are optional. Without all values, the release variant stays unsigned; the debug APK
+          # is signed with Android's standard debug key and is the installable CI artifact.
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+        run: ./gradlew --no-daemon :app:assembleDebug :app:assembleRelease --stacktrace
+
+      - name: Verify the release APK
+        run: |
+          set -euo pipefail
+          APK="$(find app/build/outputs/apk/release -name '*.apk' -print -quit)"
+          DEBUG_APK="app/build/outputs/apk/debug/app-debug.apk"
+          test -n "$APK"
+          test -f "$DEBUG_APK"
+          echo "Release APK: $APK"
+          echo "Installable debug APK: $DEBUG_APK"
+          AAPT2="$(find "$ANDROID_HOME/build-tools" -name aapt2 | sort -V | tail -n 1)"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -n 1)"
+          "$AAPT2" dump badging "$APK" > apk-badging.txt
+          "$APKSIGNER" verify --verbose "$DEBUG_APK"
+          cat apk-badging.txt
+
+          fail=0
+          check() { # name, pattern, expect_present(1/0)
+            if grep -qE "$2" apk-badging.txt; then found=1; else found=0; fi
+            if [ "$found" -ne "$3" ]; then echo "FAILED: $1"; fail=1; else echo "ok: $1"; fi
+          }
+
+          check "GitHub application id"      "package: name='app.githubwebview.locked'" 1
+          check "has a version name"        "versionName='" 1
+          check "INTERNET permission"       "uses-permission: name='android.permission.INTERNET'" 1
+          check "no CAMERA permission"      "uses-permission: name='android.permission.CAMERA'" 0
+          check "no location permission"    "uses-permission: name='android.permission.ACCESS_FINE_LOCATION'" 0
+          check "no storage permission"     "uses-permission: name='android.permission.WRITE_EXTERNAL_STORAGE'" 0
+          check "no READ_CONTACTS"          "uses-permission: name='android.permission.READ_CONTACTS'" 0
+          check "not debuggable"            "application-debuggable" 0
+          check "launcher entry present"    "launchable-activity: name='app.arenawebview.locked.MainActivity'" 1
+          check "one launcher entry only"   "launchable-activity:" 1
+
+          echo "--- badging summary ---"
+          grep -E "package:|sdkVersion|targetSdkVersion|launchable-activity|uses-permission" apk-badging.txt || true
+          exit $fail
+
+      - name: Checksums
+        run: |
+          set -euo pipefail
+          for apk in $(find app/build/outputs/apk -name '*.apk'); do
+            sha256sum "$apk" | tee -a APK-SHA256SUMS.txt
+          done
+          cat APK-SHA256SUMS.txt
+
+      - name: Upload APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: github-webview-apk
+          path: |
+            app/build/outputs/apk/release/*.apk
+            app/build/outputs/apk/debug/*.apk
+            APK-SHA256SUMS.txt
+            apk-badging.txt
+          if-no-files-found: error
+          retention-days: 90
+
+  instrumented-tests:
+    name: Instrumented tests (emulator)
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Enable KVM for the emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run the guards on a real WebView
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          profile: pixel_5
+          disable-animations: true
+          emulator-options: -no-window -no-snapshot -noaudio -no-boot-anim -gpu swiftshader_indirect
+          script: |
+            set -x
+            mkdir -p docs/evidence
+            adb logcat -c || true
+            ( ./gradlew --no-daemon :app:connectedDebugAndroidTest --stacktrace; echo $? > /tmp/gradle-exit ) 2>&1 | tee /tmp/gradle-instrumented.log
+            test "$(cat /tmp/gradle-exit)" = 0 || echo "instrumented tests reported failures" > /tmp/instrumented-failed
+            adb logcat -d -s GitHubWebViewLocked:V > docs/evidence/device-logcat.txt || true
+            # Screenshot of the app as evidence of what it renders in this environment. The connected
+            # task uninstalls the APKs when it finishes, so install the debug build again first.
+            adb install -r -t app/build/outputs/apk/debug/app-debug.apk || true
+            adb shell am start -n app.githubwebview.locked/app.arenawebview.locked.MainActivity || true
+            sleep 25
+            adb logcat -d -s GitHubWebViewLocked:V > docs/evidence/device-logcat.txt || true
+            adb exec-out screencap -p > docs/evidence/app-screenshot.png || true
+            adb shell dumpsys activity activities > docs/evidence/device-activities.txt || true
+            ls -la docs/evidence || true
+            # Print the guard diagnostics into the workflow log as well, so the evidence is readable
+            # without downloading the artifact.
+            echo "=== live site smoke test ==="
+            grep -E "live smoke|evaluateJavascript" docs/evidence/device-logcat.txt || true
+            echo "=== guard decisions on the device ==="
+            grep -E "watchdog|refused|recovery|start=|load \\(" docs/evidence/device-logcat.txt || true
+            echo "=== third-party requests that the policy refused ==="
+            grep -E "blocked by CORS policy" docs/evidence/device-logcat.txt | head -n 5 || true
+            echo "=== GitHub login and input probe ==="
+            grep -E "probe" docs/evidence/device-logcat.txt || true
+            echo "=== egress guard on the device ==="
+            grep -E "egress" docs/evidence/device-logcat.txt | head -n 40 || true
+            cp /tmp/gradle-instrumented.log docs/evidence/gradle-instrumented.log || true
+            test ! -f /tmp/instrumented-failed
+
+      # Failures are surfaced as workflow annotations (readable from the Checks API and the run page
+      # without downloading the artifact or the raw log): one per failed test, plus the Gradle tail when
+      # the run broke before any test could report.
+      - name: Summarise instrumented failures as annotations
+        if: always()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import glob, os, re, xml.etree.ElementTree as ET
+          def esc(msg):
+              return msg.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+          def trim(text, limit=1800):
+              text = (text or '').strip()
+              return text if len(text) <= limit else text[:limit] + ' ...'
+          total = failures = emitted = 0
+          for path in sorted(glob.glob('app/build/outputs/androidTest-results/connected/**/*.xml', recursive=True)):
+              try:
+                  root = ET.parse(path).getroot()
+              except ET.ParseError:
+                  continue
+              for case in root.iter('testcase'):
+                  total += 1
+                  problem = case.find('failure')
+                  if problem is None:
+                      problem = case.find('error')
+                  if problem is None:
+                      continue
+                  failures += 1
+                  if emitted < 8:
+                      emitted += 1
+                      title = f"{case.get('classname', '?').split('.')[-1]}.{case.get('name', '?')}"
+                      message = (problem.get('message') or '') + '\n' + (problem.text or '')
+                      print(f"::error title={esc(title)}::{esc(trim(message))}")
+          print(f"::notice title=Instrumented tests::{total} test cases reported, {failures} failed")
+          if total == 0 and os.path.exists('/tmp/gradle-instrumented.log'):
+              log = open('/tmp/gradle-instrumented.log', errors='replace').read()
+              interesting = [l for l in log.splitlines() if re.search(r'error:|FAILED|What went wrong|Exception|Could not|No tests|INSTRUMENTATION', l)]
+              print(f"::error title=Instrumented run produced no test results::{esc(trim(chr(10).join(interesting[-40:]) or log[-1800:]))}")
+          if os.path.exists('docs/evidence/device-logcat.txt'):
+              device = open('docs/evidence/device-logcat.txt', errors='replace').read().splitlines()
+              def strip(line):
+                  # "10-13 23:14:23.878  4740  6199 I GitHubWebViewLocked: msg" -> "23:14:23 msg"
+                  m = re.match(r'\S+ (\S+?)\.\d+\s+\d+\s+\d+ \w \S+: (.*)', line)
+                  return f"{m.group(1)} {m.group(2)}" if m else line
+              views = [
+                  ('Egress guard on the device', r'egress|deferred|guard', 30),
+                  ('Page loads on the device', r'load \(|main frame load error|recovery \(|watchdog found|refused document|restored', 30),
+                  ('Live probes on the device', r'live smoke|probe|evaluateJavascript', 20),
+                  ('Policy counters on the device', r'TUNNELS|NAVIGATIONS|BLOCKED_REQUESTS|RECOVERY|RELOADS', 24),
+                  ('Refused sub-resources on the device', r'refused sub-resource', 15),
+              ]
+              for title, pattern, limit in views:
+                  lines = [strip(l) for l in device if re.search(pattern, l)]
+                  if lines:
+                      print(f"::notice title={esc(title)} ({len(lines)} lines)::{esc(trim(chr(10).join(lines[:limit])))}")
+          PY
+
+      - name: Publish instrumented test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: instrumented-test-evidence
+          path: |
+            app/build/reports/androidTests/connected/**
+            app/build/outputs/androidTest-results/**
+            docs/evidence/**
+          if-no-files-found: warn
+          retention-days: 30
+
+  release:
+    name: Publish release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    needs: build-apk
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download the built APKs
+        uses: actions/download-artifact@v4
+        with:
+          name: github-webview-apk
+          path: dist
+
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          ls -laR dist
+          mapfile -t FILES < <(find dist -type f \
+            \( -name '*.apk' -o -name 'APK-SHA256SUMS.txt' -o -name 'apk-badging.txt' \))
+          printf 'attaching: %s\n' "${FILES[@]}"
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "GitHub WebView (Locked) ${GITHUB_REF_NAME}" \
+            --notes-file docs/RELEASE_NOTES.md \
+            "${FILES[@]}"

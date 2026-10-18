@@ -1,0 +1,23 @@
+# Build output
+.gradle/
+build/
+*.apk
+*.aab
+*.aar
+local.properties
+
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+.DS_Store
+captures/
+
+# Emulator / test output (kept out of git; uploaded as CI artifacts instead)
+*.hprof
+test-results/
+screenshots/
+
+# The Gradle wrapper JAR is committed because it is required to build. Do not commit signing keys.
+/keystore/

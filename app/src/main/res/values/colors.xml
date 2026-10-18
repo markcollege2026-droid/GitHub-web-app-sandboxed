@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="scrim">#F2000000</color>
+    <color name="card">#FF16181D</color>
+    <color name="card_stroke">#FF2E3340</color>
+    <color name="accent">#FF4C8DFF</color>
+    <color name="on_card">#FFEDEFF3</color>
+    <color name="on_card_muted">#FF9AA3B2</color>
+</resources>

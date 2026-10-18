@@ -1,0 +1,8 @@
+// Root build file. The only plugin is Android Gradle Plugin; there is no third-party build logic.
+plugins {
+    id 'com.android.application' version '8.7.3' apply false
+}
+
+tasks.register('clean', Delete) {
+    delete rootProject.layout.buildDirectory
+}

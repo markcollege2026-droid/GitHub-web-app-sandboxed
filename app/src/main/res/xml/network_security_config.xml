@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  HTTPS only, everywhere, and system certificate authorities only.
+
+  The only host allowed to become an app page is github.com, so it is the only host explicitly pinned
+  in a domain-config. GitHub's static assets, API, avatars, and repository-content hosts are resource-only
+  in the runtime URL policy and remain covered by the strict base configuration; they do not gain
+  permission to become top-level pages here.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="false">github.com</domain>
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </domain-config>
+</network-security-config>

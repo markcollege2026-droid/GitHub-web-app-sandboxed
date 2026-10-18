@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">GitHub WebView (Locked)</string>
+    <string name="start_url">https://github.com/</string>
+    <string name="overlay_title_blocked">Blocked by this app</string>
+    <string name="overlay_title_error">Could not load GitHub</string>
+    <string name="overlay_reload">Back to GitHub</string>
+    <string name="overlay_copy">Copy diagnostics</string>
+    <string name="overlay_dismiss">Dismiss</string>
+    <string name="overlay_footer">This app only opens GitHub.com pages and explicitly approved GitHub resource hosts for content inside those pages. Other websites and external apps stay blocked.</string>
+    <string name="auth_window_title">Authentication</string>
+    <string name="auth_window_close">Close</string>
+    <string name="renderer_restarted">The page stopped responding and was restarted.</string>
+    <string name="egress_unavailable">Every connection this app makes goes through a built-in network guard, and that guard could not be started, so nothing was loaded.\n\nDetails: %1$s\n\nUse Back to GitHub to try again.</string>
+    <string name="auth_window_footer">External identity-provider hand-offs are blocked unless their exact host is explicitly approved. No system browser is opened.</string>
+</resources>

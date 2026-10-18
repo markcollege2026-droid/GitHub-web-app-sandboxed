@@ -1,0 +1,104 @@
+plugins {
+    id 'com.android.application'
+}
+
+// Release signing is opt-in. The Arena source repository's demo key is deliberately not copied into
+// this GitHub wrapper, and no private signing key is checked into this repository. The CI-produced
+// installable artifact is the standard Android-signed debug APK unless a maintainer supplies all four
+// signing values as environment variables / GitHub secrets.
+def signingKeystorePath = System.getenv('SIGNING_KEYSTORE_PATH')
+def signingStorePassword = System.getenv('SIGNING_STORE_PASSWORD')
+def signingKeyAlias = System.getenv('SIGNING_KEY_ALIAS')
+def signingKeyPassword = System.getenv('SIGNING_KEY_PASSWORD')
+def signingStoreType = System.getenv('SIGNING_STORE_TYPE') ?: 'PKCS12'
+def signingValues = [signingKeystorePath, signingStorePassword, signingKeyAlias, signingKeyPassword]
+def hasAnyReleaseSigningValue = signingValues.any { it != null && !it.isEmpty() }
+def hasAllReleaseSigningValues = signingValues.every { it != null && !it.isEmpty() }
+if (hasAnyReleaseSigningValue && !hasAllReleaseSigningValues) {
+    throw new GradleException('Release signing requires SIGNING_KEYSTORE_PATH, SIGNING_STORE_PASSWORD, '
+            + 'SIGNING_KEY_ALIAS, and SIGNING_KEY_PASSWORD together.')
+}
+def releaseSigningConfigured = hasAllReleaseSigningValues
+if (releaseSigningConfigured && !rootProject.file(signingKeystorePath).isFile()) {
+    throw new GradleException('SIGNING_KEYSTORE_PATH does not name a file: ' + signingKeystorePath)
+}
+
+android {
+    // The original Arena Java package is retained to preserve the proven source architecture. The
+    // application ID is separate so the GitHub APK installs alongside, rather than over, Arena.
+    namespace 'app.arenawebview.locked'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'app.githubwebview.locked'
+        minSdk 24
+        targetSdk 35
+        versionCode 1
+        versionName '1.0.0'
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+    }
+
+    signingConfigs {
+        if (releaseSigningConfigured) {
+            release {
+                storeFile rootProject.file(signingKeystorePath)
+                storePassword signingStorePassword
+                keyAlias signingKeyAlias
+                keyPassword signingKeyPassword
+                storeType signingStoreType
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            // Deliberately not minified/obfuscated: this project's value is that its security
+            // behaviour is auditable, and there is no third-party code to strip.
+            minifyEnabled false
+            shrinkResources false
+            if (releaseSigningConfigured) {
+                signingConfig signingConfigs.release
+            }
+        }
+        debug {
+            // Debug and release use the GitHub-specific application ID and can coexist with Arena.
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    lint {
+        // Lint findings are reported but never block a security build; the security invariants are
+        // enforced by the unit tests in app/src/test and the instrumented tests in app/src/androidTest.
+        abortOnError false
+        checkReleaseBuilds false
+    }
+
+    testOptions {
+        unitTests.returnDefaultValues = false
+    }
+}
+
+dependencies {
+    // ProxyController points every WebView connection at the in-app egress proxy
+    // (web/EgressGuard + net/EgressProxy), including WebSockets the WebViewClient cannot observe.
+    implementation 'androidx.webkit:webkit:1.12.1'
+    // Pull-to-refresh container for the primary WebView (ui/PullToRefreshFrame).
+    implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
+
+    // The policy layer is pure Java and is verified with plain JUnit on the JVM.
+    testImplementation 'junit:junit:4.13.2'
+
+    // On-device verification of the real WebView behaviour.
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+    androidTestImplementation 'androidx.test:runner:1.6.2'
+    androidTestImplementation 'androidx.test:core:1.6.1'
+}

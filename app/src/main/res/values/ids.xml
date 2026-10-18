@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Stable ids so that instrumented tests can inspect the real view hierarchy. -->
+    <item name="arena_webview" type="id" />
+    <item name="status_overlay" type="id" />
+    <item name="fullscreen_container" type="id" />
+    <item name="auth_window" type="id" />
+    <item name="auth_window_card" type="id" />
+    <item name="auth_window_content" type="id" />
+    <item name="auth_window_close" type="id" />
+</resources>
