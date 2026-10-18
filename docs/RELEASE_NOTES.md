@@ -11,13 +11,18 @@ This is the initial GitHub-specific conversion of the existing hardened Arena We
 - Original WebView security, egress proxy, navigation/popup role distinctions, back/error behavior, and software-keyboard resize fix retained.
 - Android WebView's default user-agent retained; no attempt is made to hide the WebView marker or bypass an authentication provider's embedded-browser policy.
 
+## Verification
+
+[GitHub Actions run 39168265984](https://github.com/markcollege2026-droid/GitHub-web-app-sandboxed/actions/runs/39168265984) passed 2,445 JVM test cases, 54 API 34 instrumented WebView cases, and the debug/release APK build. It verified APK badging and the debug APK signature, then published the `github-webview-apk` artifact with APK checksums and badging output. The public homepage and login DOM probes ran without submitting credentials. See `TEST_REPORT.md` for results and limitations.
+
 ## Known limitations
 
 - The production policy enables no external identity-provider host. Organization SAML/SSO or other off-GitHub authentication hand-offs will be blocked.
 - Downloads, archive/release assets, and file uploads remain blocked by the inherited security design.
-- The production API/resource host set has not yet been validated by authenticated GitHub browsing or editing.
-- No APK, passing test run, live authentication, or keyboard/IME result is claimed until CI/device verification completes. See `TEST_REPORT.md`.
+- GitHub's public homepage and login DOM have been exercised, but authenticated repository editing, commits, issues, PRs, Actions, uploads/downloads, and organization flows were not tested with an account.
+- The keyboard resize invariant was tested in source; visible IME/input behavior was not tested on a physical device or by tapping the login field.
+- GitHub-internal telemetry and unlisted hosts or paths remain blocked by design. Features depending on them may be incomplete.
 
 ## Build artifact and signing
 
-The `github-webview-apk` Actions artifact is configured to include the installable debug APK, release APK, SHA-256 checksums, and badging output. Without optional signing secrets, the debug APK is signed with the standard debug key and the release APK remains unsigned. No private or demo keystore is committed.
+The `github-webview-apk` Actions artifact contains the installable debug APK, the release APK, SHA-256 checksums, and release badging output. The debug APK's signature is verified in CI. Release signing is optional and depends on configured repository secrets; no private or demo keystore is committed.
