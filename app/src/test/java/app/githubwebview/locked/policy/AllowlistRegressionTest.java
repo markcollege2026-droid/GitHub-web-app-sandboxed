@@ -452,9 +452,9 @@ public class AllowlistRegressionTest {
             assertFalse(host + " as sub-resource", config.evaluateRequest(url).isAllowed());
             assertFalse(host + " as embedded document", config.evaluateSubdocument(url).isAllowed());
             assertFalse(host + " as navigation", config.evaluateNavigation(url).isAllowed());
-            // Tunnel check uses the bare host without a port suffix.
-            String bareHost = host.contains(":") ? host.substring(0, host.indexOf(':')) : host;
-            assertFalse(host + " as tunnel", config.evaluateTunnel(bareHost, 443).isAllowed());
+            // The tunnel API accepts a bare host separately from the port argument; a colon
+            // embedded in the hostname is malformed and must not be stripped into an allowed host.
+            assertFalse(host + " as tunnel", config.evaluateTunnel(host, 443).isAllowed());
         }
         // The exact rejected reasons for the four cases named in the task.
         assertEquals(BlockReason.HOST_NOT_ALLOWED,
