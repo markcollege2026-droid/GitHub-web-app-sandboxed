@@ -22,4 +22,11 @@ The existing downloader is unchanged: it uses EgressGuard's loopback proxy, disa
 
 Regression coverage was added for pattern matching, resource-vs-document policy, endpoint variants/lookalikes, and watchdog state across successful, failed, cancelled, and unauthorized navigation cases. The preservation fingerprint exceptions and the two added production files are declared in `upstream-core-fingerprints.json`.
 
-A hosted Gradle CI run is being requested for this branch. Until that run finishes, unit tests and Android builds are not claimed as passed.
+GitHub Actions run [42919733147](https://github.com/markcollege2026-droid/GitHub-web-app-sandboxed/actions/runs/42919733147) completed successfully for commit `aaa1dffe669fa92867f9da8226e9b26d42d1731a`:
+
+- JVM tests: **4,007 passed, 0 failed, 0 skipped**.
+- Debug and release APKs: built; release APK identity, permissions, signing and checksums validated.
+- Instrumented Android emulator tests: passed.
+- Signed-out site observations: passed.
+
+The first CI attempt exposed a faulty test assertion for a malformed `host:port` passed to the bare-host tunnel API. The assertion was corrected to test the malformed input directly; the successful run above includes the correction. This verifies compilation and automated policy/navigation regression coverage. It does not simulate a signed-in user's real workflow-run artifact download against a live Actions job.
