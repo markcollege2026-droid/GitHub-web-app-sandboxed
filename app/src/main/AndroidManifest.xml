@@ -28,6 +28,10 @@
         android:usesCleartextTraffic="false"
         android:theme="@style/Theme.GitHubWebViewLocked">
 
+        <meta-data
+            android:name="dev.pranav.applock.AUTOLOCK_EXEMPT"
+            android:value="true" />
+
         <activity
             android:name=".MainActivity"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden|uiMode|density|fontScale|navigation"

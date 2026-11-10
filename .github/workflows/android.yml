@@ -150,6 +150,31 @@ jobs:
           grep -E "package:|sdkVersion|targetSdkVersion|launchable-activity|uses-permission" apk-badging.txt || true
           exit $fail
 
+      - name: Verify AppLock exemption in the packaged release manifest
+        run: |
+          set -euo pipefail
+          APK="$(find app/build/outputs/apk/release -name '*.apk' | head -n 1)"
+          APKANALYZER="$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer"
+          test -x "$APKANALYZER"
+          "$APKANALYZER" manifest print "$APK" > apk-merged-manifest.xml
+          python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          manifest = ET.parse("apk-merged-manifest.xml").getroot()
+          android = "http://schemas.android.com/apk/res/android"
+          applications = manifest.findall("application")
+          if len(applications) != 1:
+              raise SystemExit(f"expected one application element, found {len(applications)}")
+          marker_name = "dev.pranav.applock.AUTOLOCK_EXEMPT"
+          markers = [item for item in applications[0].findall("meta-data")
+                     if item.get(f"{{{android}}}name") == marker_name]
+          if len(markers) != 1:
+              raise SystemExit(f"expected exactly one {marker_name} entry, found {len(markers)}")
+          value = markers[0].get(f"{{{android}}}value")
+          if value != "true":
+              raise SystemExit(f"{marker_name} must be Boolean true, got {value!r}")
+          print(f"PASS: packaged release manifest contains exactly one application-level {marker_name}=true")
+          PY
+
       - name: Checksums
         run: |
           set -euo pipefail
@@ -169,6 +194,7 @@ jobs:
             APK-SHA256SUMS.txt
             apk-badging.txt
             apk-signature.txt
+            apk-merged-manifest.xml
           if-no-files-found: error
           retention-days: 90
 

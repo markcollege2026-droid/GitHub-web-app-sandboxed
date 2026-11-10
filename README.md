@@ -83,6 +83,29 @@ usually different signing keys: uninstall one before installing the other. Neith
 Android 7+ (minSdk 24), compile/target SDK 35, JDK 17. A WebView supporting AndroidX
 `PROXY_OVERRIDE` is required; otherwise the original error screen fails closed.
 
+## Automatic AppLock enrollment exemption
+
+This application declares itself exempt from **automatic enrollment/protection** by compatible
+AppLock implementations that recognize the marker below. The declaration is application-level
+metadata in `app/src/main/AndroidManifest.xml` and is included in the installable app's merged
+manifest:
+
+```xml
+<meta-data
+    android:name="dev.pranav.applock.AUTOLOCK_EXEMPT"
+    android:value="true" />
+```
+
+To reproduce or verify it, inspect the `<application>` element in the source manifest, then build
+an APK with `./gradlew :app:processReleaseMainManifest :app:assembleRelease`. Inspect the merged
+manifest under `app/build/intermediates/merged_manifests/release/` (the exact subdirectory can vary
+by Android Gradle Plugin version), or inspect the final APK with Android SDK `aapt2 dump xmltree`
+and confirm the metadata name and Boolean `true` value.
+
+This is a **self-declared opt-out**, not a security boundary. It does not remove an application
+that an AppLock user manually added to a protected list, and does not bypass or disable protection
+that an AppLock user manually applied.
+
 ## What the app will not open (and what you will see)
 
 Two things on github.com leave the site on a click. Both are refused on purpose, and both now say so
