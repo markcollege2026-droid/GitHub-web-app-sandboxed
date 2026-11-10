@@ -216,6 +216,12 @@ public class GitHubWebViewClient extends WebViewClient {
         verifyFinalUrl(view, url, "onPageFinished");
         if (host.isPrimaryWebView(view)) {
             host.onPageFinished(url);
+            // A finished page that passed verification is the new last verified page. verifyFinalUrl
+            // above already refused anything else, so only an approved page reaches this line in
+            // practice; the host re-checks before recording it.
+            if (host.policy().evaluateNavigation(url).isAllowed()) {
+                host.onVerifiedNavigation(url);
+            }
         }
     }
 
@@ -227,14 +233,26 @@ public class GitHubWebViewClient extends WebViewClient {
             return;
         }
         PolicyResult result = host.policy().evaluateNavigation(url);
-        if (!result.isAllowed()) {
-            host.metrics().increment(PolicyMetrics.Counter.RECOVERY_RELOADS);
-            host.metrics().recordBlock(result.reason(), result.canonicalHost(), url);
-            // Do not let a refused URL stay in the history stack either: back navigation must only ever
-            // be able to reach verified pages.
-            view.clearHistory();
-            host.onRecoveryRequired("history:" + (result.reason() == null ? "?" : result.reason().name()), url);
+        if (result.isAllowed()) {
+            // Same-document navigations (pushState) do not fire onPageFinished, so they are
+            // recorded here. A resource-only host is refused by the document question and can
+            // never be recorded through this path.
+            host.onVerifiedNavigation(url);
+            return;
         }
+        if (isDownloadResourceUrl(url)) {
+            // The resource target of a download in progress is not a page navigation. The page
+            // the user was viewing stays on screen and the bytes are fetched by the app itself.
+            Log.i(TAG, "history update to a download resource during download, not a navigation: host="
+                    + result.canonicalHost());
+            return;
+        }
+        host.metrics().increment(PolicyMetrics.Counter.RECOVERY_RELOADS);
+        host.metrics().recordBlock(result.reason(), result.canonicalHost(), url);
+        // Do not let a refused URL stay in the history stack either: back navigation must only ever
+        // be able to reach verified pages.
+        view.clearHistory();
+        host.onRecoveryRequired("history:" + (result.reason() == null ? "?" : result.reason().name()), url);
     }
 
     private void verifyFinalUrl(WebView view, String url, String where) {
@@ -246,10 +264,35 @@ public class GitHubWebViewClient extends WebViewClient {
         }
         PolicyResult result = host.policy().evaluateNavigation(url);
         if (!result.isAllowed()) {
+            if (isDownloadResourceUrl(url)) {
+                // A download redirect to a resource-only storage host is not a page navigation.
+                // Resetting here would reload the page the user was viewing while the download
+                // is still in progress, which is exactly the unwanted homepage reset.
+                Log.i(TAG, where + " to a download resource during download, not a navigation: host="
+                        + result.canonicalHost());
+                return;
+            }
             host.metrics().increment(PolicyMetrics.Counter.RECOVERY_RELOADS);
             host.metrics().recordBlock(result.reason(), result.canonicalHost(), url);
             host.onRecoveryRequired(where + ":" + (result.reason() == null ? "?" : result.reason().name()), url);
         }
+    }
+
+    /**
+     * True when {@code url} is on a resource-only host that is allowed as a request and a download
+     * is in progress. An unauthorized host never qualifies, even during a download, so an actual
+     * unauthorized navigation is still recovered from.
+     */
+    private boolean isDownloadResourceUrl(String url) {
+        if (!host.isDownloadInProgress()) {
+            return false;
+        }
+        PolicyResult navigation = host.policy().evaluateNavigation(url);
+        if (navigation.isAllowed()
+                || navigation.reason() != BlockReason.DOCUMENT_NOT_ALLOWED) {
+            return false;
+        }
+        return host.policy().evaluateRequest(url).isAllowed();
     }
 
     // ---------------------------------------------------------------------------------------------

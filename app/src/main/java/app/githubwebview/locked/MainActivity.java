@@ -41,6 +41,7 @@ import java.util.Locale;
 import app.githubwebview.locked.net.FileDownloads;
 import app.githubwebview.locked.policy.GitHubAllowlist;
 import app.githubwebview.locked.policy.BackNavigator;
+import app.githubwebview.locked.policy.NavigationStateTracker;
 import app.githubwebview.locked.policy.PolicyConfig;
 import app.githubwebview.locked.policy.PolicyMetrics;
 import app.githubwebview.locked.policy.PolicyResult;
@@ -69,8 +70,10 @@ import app.githubwebview.locked.web.WebViewHardening;
  *   <li>Every connection the WebView opens - including WebSockets - goes through an in-app loopback
  *       proxy that only tunnels to allow-listed hosts on port 443; nothing is loaded until that guard
  *       is confirmed installed.</li>
- *   <li>A watchdog re-checks the visible URL on every resume and every 3 s after; anything that is not
- *       approved is replaced by the start page.</li>
+ *   <li>A watchdog re-checks the visible URL on every resume and every 3 s after; an actual
+ *       unauthorized top-level navigation is replaced by the last verified approved page (not
+ *       blindly by the start page), while a download redirect to a resource-only storage host
+ *       during a download in progress is not a navigation and never resets the page.</li>
  *   <li>Pull down from the top edge of the page (or press F5 / Ctrl+R) to reload it; the URL is verified
  *       again before the reload.</li>
  *   <li>Back never leaves the app: it goes back through verified history, falls back to the start page,
@@ -95,6 +98,14 @@ public class MainActivity extends Activity implements GuardHost, FileDownloads.L
 
     private final PolicyConfig policy = GitHubAllowlist.productionConfig();
     private final PolicyMetrics metrics = PolicyMetrics.get();
+    /**
+     * Last verified approved page plus download state. The watchdog and every recovery path return
+     * to {@link NavigationStateTracker#recoveryUrl()} (the page the user was viewing), never
+     * blindly to the start page, and a download redirect to a resource-only storage host is never
+     * recorded as a page and never triggers a reset while the download is in progress.
+     */
+    private final NavigationStateTracker navigationTracker =
+            new NavigationStateTracker(policy, policy.primaryUrl());
 
     private FrameLayout root;
     private PullToRefreshFrame pullToRefresh;
@@ -276,7 +287,7 @@ public class MainActivity extends Activity implements GuardHost, FileDownloads.L
     private void attachPrimaryWebView() {
         chromeClient = new GitHubWebChromeClient(this, this);
         webView = WebViewHardening.createPrimaryWebView(
-                this, new GitHubWebViewClient(this), chromeClient, this, downloads);
+                this, new GitHubWebViewClient(this), chromeClient, this, downloads, navigationTracker);
         webView.setId(R.id.github_webview);
         pullToRefresh.addView(webView, new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
@@ -408,6 +419,9 @@ public class MainActivity extends Activity implements GuardHost, FileDownloads.L
             }
             return false;
         }
+        // The restored page passed verification, so it becomes the last verified page. A
+        // resource-only host is refused by the document question above and can never be recorded.
+        navigationTracker.onVerifiedNavigation(current);
         return true;
     }
 
@@ -710,6 +724,19 @@ public class MainActivity extends Activity implements GuardHost, FileDownloads.L
     @Override
     public void onPageFinished(String url) {
         hideRefreshSpinner();
+        // The client only reports a finished page after verifying it, and the tracker re-checks
+        // before recording, so a resource-only host can never become the last verified page.
+        navigationTracker.onVerifiedNavigation(url);
+    }
+
+    @Override
+    public void onVerifiedNavigation(String url) {
+        navigationTracker.onVerifiedNavigation(url);
+    }
+
+    @Override
+    public boolean isDownloadInProgress() {
+        return navigationTracker.isDownloadInProgress();
     }
 
     @Override
@@ -739,6 +766,7 @@ public class MainActivity extends Activity implements GuardHost, FileDownloads.L
                         + "Save it to Downloads instead?")
                 .setPositiveButton("Save", (dialog, which) -> {
                     if (downloads != null) {
+                        navigationTracker.onDownloadStarted();
                         downloads.download(url, null, null, -1L);
                     }
                 })
@@ -749,6 +777,15 @@ public class MainActivity extends Activity implements GuardHost, FileDownloads.L
     @Override
     public void onPageLoadBlocked(String url, PolicyResult result) {
         hideRefreshSpinner();
+        if (navigationTracker.shouldSuppressRecovery(url)) {
+            // A download redirect to a resource-only storage host is not a page load failure.
+            // The page the user was viewing is still on screen; covering it with the blocked
+            // overlay would look like the page was reset while the download is in progress.
+            // Diagnostics keep the hostname and reason, without any signed URL or cookie.
+            Log.i(TAG, "page load blocked for a download resource during download, not showing overlay: host="
+                    + destinationHost(url, result));
+            return;
+        }
         // The page itself failed to load because it was not allowed. Cover the (now broken) WebView with
         // the native overlay and leave it to the user to return to the start page.
         overlay.showBlocked(destinationHost(url, result),
@@ -787,15 +824,26 @@ public class MainActivity extends Activity implements GuardHost, FileDownloads.L
     @Override
     public void onRecoveryRequired(String reason, String offendingUrl) {
         hideRefreshSpinner();
+        if (navigationTracker.shouldSuppressRecovery(offendingUrl)) {
+            // A download redirect to a resource-only storage host is not an unauthorized
+            // navigation. The WebView stays on the last verified page while the app fetches
+            // the file itself; resetting here is the unwanted homepage reset.
+            Log.i(TAG, "recovery suppressed for a download resource during download: host="
+                    + destinationHost(offendingUrl, null));
+            return;
+        }
         metrics.increment(PolicyMetrics.Counter.RECOVERY_RELOADS);
-        Log.w(TAG, "recovery (" + reason + ") from " + offendingUrl);
+        // Recovery diagnostics identify the host and reason only; offending URLs may contain
+        // signed artifact query parameters and must never be written to logcat.
+        Log.w(TAG, "recovery (" + reason + ") from host=" + destinationHost(offendingUrl, null));
         // A page that ended up somewhere unverified takes its sign-in window down with it.
         closeSignInWindow("recovery:" + reason);
         if (overlay.isOverlayVisible()) {
             // The native overlay is already covering the WebView: nothing unverified is visible.
             return;
         }
-        loadVerifiedDestination(policy.primaryUrl(), "recovery:" + reason);
+        // Return to the page the user was actually viewing, not blindly to the start page.
+        loadVerifiedDestination(navigationTracker.recoveryUrl(), "recovery:" + reason);
     }
 
     /**
@@ -976,14 +1024,20 @@ public class MainActivity extends Activity implements GuardHost, FileDownloads.L
 
     @Override
     public void onDownloadRefused(String url, String host, String reason) {
+        navigationTracker.onDownloadFinished();
         // Same surface as every other refusal: it names the host, the policy reason, and keeps the
-        // diagnostics one tap away.
-        overlay.showBlocked(host, reason, url == null ? "" : url);
+        // diagnostics one tap away. A refused download never navigates the WebView, so the page
+        // the user was viewing stays on screen.
+        // Keep the useful host/reason diagnostics, but do not surface or retain a signed URL.
+        overlay.showBlocked(host, reason, "");
         onMessage("Download refused: " + (reason == null || reason.isEmpty() ? "not allowed" : reason));
     }
 
     @Override
     public void onDownloadStarted(String fileName, long totalBytes) {
+        // The download was already recorded synchronously when the request was handed to the
+        // downloader (GuardedDownloadListener / offerToSaveInstead), so the watchdog cannot tick
+        // in between. This callback only drives the progress dialog; it must not count again.
         dismissDownloadDialog();
         if (!canShowDialogs()) {
             return;
@@ -1019,6 +1073,7 @@ public class MainActivity extends Activity implements GuardHost, FileDownloads.L
 
     @Override
     public void onDownloadSaved(String fileName, String location) {
+        navigationTracker.onDownloadFinished();
         dismissDownloadDialog();
         Log.i(TAG, "download saved: " + fileName + " in " + location);
         onMessage("Saved " + fileName + " to " + location);
@@ -1026,6 +1081,7 @@ public class MainActivity extends Activity implements GuardHost, FileDownloads.L
 
     @Override
     public void onDownloadFailed(String fileName, String reason) {
+        navigationTracker.onDownloadFinished();
         dismissDownloadDialog();
         Log.w(TAG, "download failed: " + fileName + " (" + reason + ")");
         if (!canShowDialogs()) {
@@ -1040,6 +1096,7 @@ public class MainActivity extends Activity implements GuardHost, FileDownloads.L
 
     @Override
     public void onDownloadCancelled(String fileName) {
+        navigationTracker.onDownloadFinished();
         dismissDownloadDialog();
         onMessage("Download cancelled: nothing was saved");
     }
@@ -1305,6 +1362,11 @@ public class MainActivity extends Activity implements GuardHost, FileDownloads.L
      * Last line of defence: whatever the WebView believes it is showing must be an approved page. This
      * catches anything that could ever slip past the interception hooks (a meta refresh, a
      * service-worker navigation, a bug in the WebView, or a future edit to this app).
+     *
+     * <p>The decision is made by {@link NavigationStateTracker}, which knows the difference between
+     * an actual unauthorized top-level navigation and a download redirect to a resource-only
+     * storage host. The former returns to the last verified page; the latter leaves the WebView
+     * exactly where the user left it. A resource-only host is never recorded as a page.</p>
      */
     private void tickWatchdog() {
         checkSignInWindowUrl();
@@ -1314,19 +1376,32 @@ public class MainActivity extends Activity implements GuardHost, FileDownloads.L
         }
         metrics.increment(PolicyMetrics.Counter.WATCHDOG_CHECKS);
         String current = view.getUrl();
-        if (current == null || current.isEmpty()) {
-            return;
+        NavigationStateTracker.WatchdogDecision decision = navigationTracker.checkWatchdog(current);
+        switch (decision) {
+            case OK:
+            case OK_NO_UPDATE:
+            case EMPTY:
+                return;
+            case DOWNLOAD_IN_PROGRESS:
+                // A download redirect to a resource-only storage host is not a page navigation.
+                // Do not reset, do not record the resource URL as a page, and keep the original
+                // approved page on screen. Diagnostics name the host and reason only, never a
+                // signed URL or a cookie.
+                PolicyResult downloadResult = policy.evaluateNavigation(current);
+                Log.i(TAG, "watchdog: download resource during download, not resetting: host="
+                        + downloadResult.canonicalHost());
+                return;
+            case UNAUTHORIZED:
+            default:
+                break;
         }
         PolicyResult result = policy.evaluateNavigation(current);
-        if (result.isAllowed()) {
-            return;
-        }
         metrics.recordBlock(result.reason(), result.canonicalHost(), current);
         Log.w(TAG, "watchdog found a non-approved URL, resetting: " + result.describe());
         if (overlay.isOverlayVisible()) {
             return;
         }
-        loadVerifiedDestination(policy.primaryUrl(), "watchdog");
+        loadVerifiedDestination(navigationTracker.recoveryUrl(), "watchdog");
     }
 
     /**

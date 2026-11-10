@@ -41,6 +41,15 @@ public class DownloadPlanTest {
                 // the release-asset origin and the documented legacy bucket
                 "https://release-assets.githubusercontent.com/x/y.zip",
                 "https://github-cloud.s3.amazonaws.com/x/y.zip",
+                // GitHub Actions artifact downloads redirect to results storage hosts. Every
+                // numeric endpoint, including future ones, must be downloadable as a resource.
+                "https://productionresultssa0.blob.core.windows.net/actions-results/artifact.zip?sig=x",
+                "https://productionresultssa19.blob.core.windows.net/actions-results/artifact.zip?sig=x",
+                "https://productionresultssa30.blob.core.windows.net/actions-results/artifact.zip?sig=x",
+                "https://productionresultssa49.blob.core.windows.net/actions-results/artifact.zip?sig=x",
+                "https://productionresultssa100.blob.core.windows.net/actions-results/artifact.zip?sig=x",
+                "https://productionresultssa199.blob.core.windows.net/actions-results/artifact.zip?sig=x",
+                "https://productionresultssa200.blob.core.windows.net/actions-results/artifact.zip?sig=x",
         };
         for (String url : urls) {
             DownloadPlan.Plan plan = plan(url);
@@ -61,6 +70,11 @@ public class DownloadPlanTest {
         assertFalse(plan("https://github.com.evil.example/x.zip").isAllowed());
         assertFalse(plan("https://docs.github.com/x.zip").isAllowed());
         assertFalse(plan("https://raw.githubusercontent.com.evil.example/x").isAllowed());
+        // Results storage look-alikes are not downloads either.
+        assertFalse(plan("https://productionresultssa30.blob.core.windows.net.evil.example/x.zip").isAllowed());
+        assertFalse(plan("https://evilproductionresultssa30.blob.core.windows.net/x.zip").isAllowed());
+        assertFalse(plan("https://productionresultssaX.blob.core.windows.net/x.zip").isAllowed());
+        assertFalse(plan("https://unrelated.blob.core.windows.net/x.zip").isAllowed());
     }
 
     @Test

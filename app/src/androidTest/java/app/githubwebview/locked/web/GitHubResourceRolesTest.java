@@ -35,6 +35,28 @@ public class GitHubResourceRolesTest {
                     assertTrue(url, client.shouldOverrideUrlLoading(view, FakeWebResourceRequest.redirect(url)));
                     assertNotNull(url, client.shouldInterceptRequest(view, FakeWebResourceRequest.navigation(url)));
                 }
+                // Results storage hosts are matched by pattern, not enumerated as exact entries.
+                for (String storageHost : new String[]{
+                        "productionresultssa0.blob.core.windows.net",
+                        "productionresultssa30.blob.core.windows.net",
+                        "productionresultssa199.blob.core.windows.net",
+                        "productionresultssa200.blob.core.windows.net"}) {
+                    String url = "https://" + storageHost + "/actions-results/artifact.zip";
+                    assertNull(url, client.shouldInterceptRequest(view, FakeWebResourceRequest.subresource(url)));
+                    assertFalse(url, client.shouldOverrideUrlLoading(view, FakeWebResourceRequest.subframe(url)));
+                    assertTrue(url, client.shouldOverrideUrlLoading(view, FakeWebResourceRequest.navigation(url)));
+                    assertTrue(url, client.shouldOverrideUrlLoading(view, FakeWebResourceRequest.redirect(url)));
+                    assertNotNull(url, client.shouldInterceptRequest(view, FakeWebResourceRequest.navigation(url)));
+                }
+                // Look-alikes are refused even as sub-resources.
+                for (String lookAlike : new String[]{
+                        "https://productionresultssa30.blob.core.windows.net.evil.example/x",
+                        "https://evilproductionresultssa30.blob.core.windows.net/x",
+                        "https://productionresultssaX.blob.core.windows.net/x",
+                        "https://unrelated.blob.core.windows.net/x"}) {
+                    assertNotNull(lookAlike, client.shouldInterceptRequest(view, FakeWebResourceRequest.subresource(lookAlike)));
+                    assertTrue(lookAlike, client.shouldOverrideUrlLoading(view, FakeWebResourceRequest.navigation(lookAlike)));
+                }
             } finally { view.destroy(); }
         });
     }

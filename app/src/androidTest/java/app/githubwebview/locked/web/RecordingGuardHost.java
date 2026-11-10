@@ -32,6 +32,8 @@ public final class RecordingGuardHost extends BaseGuardHost {
     public String lastDownloadBlocked;
     public String lastError;
     public String lastRecoveryReason;
+    public String lastVerifiedNavigation;
+    public boolean downloadInProgress;
     public int fileChooserBlocks;
     public int sslBlocks;
     public int fullscreenRequests;
@@ -85,6 +87,17 @@ public final class RecordingGuardHost extends BaseGuardHost {
     public void onRecoveryRequired(String reason, String offendingUrl) {
         lastRecoveryReason = reason;
         event("recovery " + reason + " " + offendingUrl);
+    }
+
+    @Override
+    public void onVerifiedNavigation(String url) {
+        lastVerifiedNavigation = url;
+        event("verified navigation " + url);
+    }
+
+    @Override
+    public boolean isDownloadInProgress() {
+        return downloadInProgress;
     }
 
     @Override

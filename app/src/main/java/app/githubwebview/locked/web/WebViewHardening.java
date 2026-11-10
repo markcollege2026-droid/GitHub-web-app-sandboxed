@@ -13,6 +13,7 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 
 import app.githubwebview.locked.net.FileDownloads;
+import app.githubwebview.locked.policy.NavigationStateTracker;
 import app.githubwebview.locked.policy.PolicyConfig;
 import app.githubwebview.locked.policy.PolicyMetrics;
 import app.githubwebview.locked.policy.PolicyResult;
@@ -117,13 +118,23 @@ public final class WebViewHardening {
     public static WebView createPrimaryWebView(Context context, android.webkit.WebViewClient client,
                                                android.webkit.WebChromeClient chromeClient, GuardHost host,
                                                FileDownloads downloads) {
+        return createPrimaryWebView(context, client, chromeClient, host, downloads, null);
+    }
+
+    /**
+     * As above, with the navigation tracker so a download request is recorded synchronously,
+     * before the watchdog can mistake a download redirect for a page navigation.
+     */
+    public static WebView createPrimaryWebView(Context context, android.webkit.WebViewClient client,
+                                               android.webkit.WebChromeClient chromeClient, GuardHost host,
+                                               FileDownloads downloads, NavigationStateTracker tracker) {
         WebView webView = new WebView(context);
         applyHardenedSettings(webView.getSettings());
         applyCookiePolicy(context, webView);
         webView.setWebViewClient(client);
         webView.setWebChromeClient(chromeClient);
         webView.setBackgroundColor(android.graphics.Color.BLACK);
-        webView.setDownloadListener(new GuardedDownloadListener(downloads));
+        webView.setDownloadListener(new GuardedDownloadListener(downloads, tracker));
         // There is deliberately no Java-to-JavaScript bridge anywhere in this project: a bridge is the
         // classic WebView remote-code-execution path, and this wrapper needs none (SourceInvariantsTest
         // fails the build if one is ever added).
@@ -179,9 +190,15 @@ public final class WebViewHardening {
     static final class GuardedDownloadListener implements DownloadListener {
 
         private final FileDownloads downloads;
+        private final NavigationStateTracker tracker;
 
         GuardedDownloadListener(FileDownloads downloads) {
+            this(downloads, null);
+        }
+
+        GuardedDownloadListener(FileDownloads downloads, NavigationStateTracker tracker) {
             this.downloads = downloads;
+            this.tracker = tracker;
         }
 
         @Override
@@ -189,6 +206,13 @@ public final class WebViewHardening {
                                     String mimeType, long contentLength) {
             if (downloads == null) {
                 return; // no downloader wired: fail closed by doing nothing rather than by leaking
+            }
+            // Record the download synchronously, on the same thread that delivered the request,
+            // so the watchdog cannot tick between the request and the downloader's first callback
+            // and mistake a download redirect for a page navigation. The matching finish is
+            // recorded by the activity's download callbacks (saved, failed, cancelled, refused).
+            if (tracker != null) {
+                tracker.onDownloadStarted();
             }
             downloads.download(url, contentDisposition, mimeType, contentLength);
         }

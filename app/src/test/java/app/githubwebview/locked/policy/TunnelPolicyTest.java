@@ -31,6 +31,29 @@ public class TunnelPolicyTest {
     }
 
     @Test
+    public void resultsStoragePatternHostsMayBeTunnelledOnPort443Only() {
+        for (String host : new String[]{
+                "productionresultssa0.blob.core.windows.net",
+                "productionresultssa30.blob.core.windows.net",
+                "productionresultssa199.blob.core.windows.net",
+                "productionresultssa200.blob.core.windows.net"}) {
+            PolicyResult result = POLICY.evaluateTunnel(host, 443);
+            assertTrue(host + " -> " + result.describe(), result.isAllowed());
+            assertEquals(host, result.canonicalHost());
+            assertTrue(result.matchedEntry().isResourceOnly());
+            assertFalse(POLICY.evaluateTunnel(host, 8443).isAllowed());
+            assertFalse(POLICY.evaluateTunnel(host, 80).isAllowed());
+        }
+        for (String host : new String[]{
+                "productionresultssa30.blob.core.windows.net.evil.example",
+                "evilproductionresultssa30.blob.core.windows.net",
+                "productionresultssaX.blob.core.windows.net",
+                "unrelated.blob.core.windows.net"}) {
+            assertFalse(host, POLICY.evaluateTunnel(host, 443).isAllowed());
+        }
+    }
+
+    @Test
     public void onlyPort443IsEverAllowed() {
         int[] ports = {1, 80, 8080, 8443, 442, 444, 4443, 65535, 0, -1, 70000};
         for (int port : ports) {

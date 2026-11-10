@@ -184,7 +184,8 @@ public class UrlPolicyFuzzTest {
                 + iteration + ")";
         AllowEntry entry = result.matchedEntry();
         assertNotNull("an allowed network URL must name its entry" + where, entry);
-        assertTrue("reported host must be allow-listed" + where, allowedHosts.contains(result.canonicalHost()));
+        assertTrue("reported host must be allow-listed" + where,
+                allowedHosts.contains(result.canonicalHost()) || CONFIG.isAllowedHost(result.canonicalHost()));
         assertEquals("entry and reported host must agree" + where, entry.host(), result.canonicalHost());
 
         // The WHATWG parser (and therefore Chromium) deletes ASCII tab/newline anywhere and strips leading
