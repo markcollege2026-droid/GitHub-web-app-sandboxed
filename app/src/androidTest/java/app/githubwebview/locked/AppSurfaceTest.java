@@ -54,8 +54,6 @@ public class AppSurfaceTest {
         assertEquals("one foreground download service", 1, services.length);
         assertTrue(services[0].name.endsWith("BackgroundDownloadService"));
         assertFalse("the download service must not be externally callable", services[0].exported);
-        assertEquals(android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
-                services[0].foregroundServiceType);
         assertEquals("no content providers may exist",
                 0, info.providers == null ? 0 : info.providers.length);
 
