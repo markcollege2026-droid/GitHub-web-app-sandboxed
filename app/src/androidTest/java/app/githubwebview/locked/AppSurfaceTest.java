@@ -49,17 +49,25 @@ public class AppSurfaceTest {
         assertEquals("no broadcast receivers may be exported or registered",
                 0, info.receivers == null ? 0 : info.receivers.length);
         ServiceInfo[] services = info.services;
-        assertEquals("no services may exist", 0, services == null ? 0 : services.length);
+        assertNotNull("the private background download service must be declared", services);
+        assertEquals("one foreground download service", 1, services.length);
+        assertTrue(services[0].name.endsWith("BackgroundDownloadService"));
+        assertFalse("the download service must not be externally callable", services[0].exported);
+        assertEquals(android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
+                services[0].getForegroundServiceType());
         assertEquals("no content providers may exist",
                 0, info.providers == null ? 0 : info.providers.length);
 
         assertNotNull("permissions must be declared explicitly", info.requestedPermissions);
-        assertEquals("only the two network permissions may be requested",
-                2, info.requestedPermissions.length);
+        assertEquals("only network access and foreground-download notification permissions may be requested",
+                5, info.requestedPermissions.length);
         for (String permission : info.requestedPermissions) {
             assertTrue("unexpected permission: " + permission,
                     "android.permission.INTERNET".equals(permission)
-                            || "android.permission.ACCESS_NETWORK_STATE".equals(permission));
+                            || "android.permission.ACCESS_NETWORK_STATE".equals(permission)
+                            || "android.permission.FOREGROUND_SERVICE".equals(permission)
+                            || "android.permission.FOREGROUND_SERVICE_DATA_SYNC".equals(permission)
+                            || "android.permission.POST_NOTIFICATIONS".equals(permission));
         }
     }
 }

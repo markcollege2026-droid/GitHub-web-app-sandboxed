@@ -64,7 +64,7 @@ public class ManifestPolicyTest {
     // -------------------------------------------------------------------------------------------
 
     @Test
-    public void onlyInternetAndNetworkStatePermissionsAreDeclared() throws Exception {
+    public void onlyRequiredNetworkAndForegroundNotificationPermissionsAreDeclared() throws Exception {
         Document manifest = parse(TestPaths.manifest());
         List<Element> permissions = children(manifest.getDocumentElement(), "uses-permission");
         List<String> names = new ArrayList<String>();
@@ -73,7 +73,10 @@ public class ManifestPolicyTest {
         }
         assertEquals(Arrays.asList(
                         "android.permission.INTERNET",
-                        "android.permission.ACCESS_NETWORK_STATE"),
+                        "android.permission.ACCESS_NETWORK_STATE",
+                        "android.permission.FOREGROUND_SERVICE",
+                        "android.permission.FOREGROUND_SERVICE_DATA_SYNC",
+                        "android.permission.POST_NOTIFICATIONS"),
                 names);
     }
 
@@ -101,12 +104,16 @@ public class ManifestPolicyTest {
     }
 
     @Test
-    public void thereIsExactlyOneExportedComponent() throws Exception {
+    public void onlyTheLauncherIsExportedAndTheDownloadServiceIsPrivate() throws Exception {
         Document manifest = parse(TestPaths.manifest());
         Element application = children(manifest.getDocumentElement(), "application").get(0);
 
-        // Nothing but the launcher activity may exist or be reachable from outside the app.
-        assertTrue("no services allowed", children(application, "service").isEmpty());
+        // The sole helper is a non-exported foreground service; only the launcher is reachable externally.
+        List<Element> services = children(application, "service");
+        assertEquals("one background download service", 1, services.size());
+        assertEquals(".net.BackgroundDownloadService", androidAttr(services.get(0), "name"));
+        assertEquals("false", androidAttr(services.get(0), "exported"));
+        assertEquals("dataSync", androidAttr(services.get(0), "foregroundServiceType"));
         assertTrue("no receivers allowed", children(application, "receiver").isEmpty());
         assertTrue("no providers allowed", children(application, "provider").isEmpty());
         assertTrue("no activity aliases allowed", children(application, "activity-alias").isEmpty());

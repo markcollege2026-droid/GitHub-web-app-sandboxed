@@ -207,14 +207,12 @@ public final class WebViewHardening {
             if (downloads == null) {
                 return; // no downloader wired: fail closed by doing nothing rather than by leaking
             }
-            // Record the download synchronously, on the same thread that delivered the request,
-            // so the watchdog cannot tick between the request and the downloader's first callback
-            // and mistake a download redirect for a page navigation. The matching finish is
-            // recorded by the activity's download callbacks (saved, failed, cancelled, refused).
-            if (tracker != null) {
+            // Record only a request accepted by the service-backed facade. This runs synchronously
+            // on the UI callback thread, before the watchdog can mistake its redirect for a page.
+            boolean started = downloads.download(url, contentDisposition, mimeType, contentLength);
+            if (started && tracker != null) {
                 tracker.onDownloadStarted();
             }
-            downloads.download(url, contentDisposition, mimeType, contentLength);
         }
     }
 }

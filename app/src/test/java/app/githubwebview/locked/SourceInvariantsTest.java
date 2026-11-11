@@ -274,7 +274,14 @@ public class SourceInvariantsTest {
         assertTrue("the WebView must route downloads to the app's downloader",
                 hardening.contains("setDownloadListener"));
         assertTrue(hardening.contains("downloads.download("));
-        assertTrue("the one downloader must be created by the activity", main.contains("new FileDownloads("));
+        String service = code("app/githubwebview/locked/net/BackgroundDownloadService.java");
+        assertTrue("the foreground service owns the transfer worker", service.contains("new FileDownloads("));
+        assertTrue("the Activity must delegate to the foreground service",
+                main.contains("BackgroundDownloadService.start(this, url, disposition, mime, length)"));
+        assertTrue("Activity destruction must not shut down service-owned transfers",
+                main.contains("downloads.shutdown()") && main.contains("new FileDownloads.BackgroundStarter()"));
+        assertTrue("the foreground service must not be sticky-rescheduled with stale URL data",
+                service.contains("return START_NOT_STICKY"));
 
         assertFalse("the app must not use the platform download manager", sources.contains("DownloadManager"));
         assertFalse("nothing may be shared with another app", sources.contains("ACTION_SEND"));

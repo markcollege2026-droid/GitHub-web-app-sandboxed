@@ -3,6 +3,7 @@ package app.githubwebview.locked.net;
 import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Context;
+import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
@@ -28,6 +29,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.UUID;
 
 import app.githubwebview.locked.policy.PolicyConfig;
 import app.githubwebview.locked.policy.PolicyMetrics;
@@ -68,6 +70,12 @@ public final class FileDownloads {
     private static final int BUFFER_BYTES = 64 * 1024;
 
     /** Callbacks. Every one is delivered on the main thread. */
+    /** A facade can hand accepted requests to a lifecycle-independent Android component. */
+    public interface BackgroundStarter {
+        boolean start(String url, String contentDisposition, String mimeType, long contentLength);
+        void cancel();
+    }
+
     public interface Listener {
         /** The policy refused the URL. Nothing was opened, fetched or written. */
         void onDownloadRefused(String url, String host, String reason);
@@ -92,11 +100,8 @@ public final class FileDownloads {
     private final PolicyMetrics metrics;
     private final Handler ui;
     private final Listener listener;
-    private final ExecutorService worker = Executors.newSingleThreadExecutor(runnable -> {
-        Thread thread = new Thread(runnable, "github-download");
-        thread.setDaemon(true);
-        return thread;
-    });
+    private final BackgroundStarter backgroundStarter;
+    private final ExecutorService worker;
 
     private final AtomicBoolean busy = new AtomicBoolean(false);
     private final AtomicBoolean cancelled = new AtomicBoolean(false);
@@ -104,6 +109,12 @@ public final class FileDownloads {
 
     public FileDownloads(Context context, PolicyConfig policy, PolicyMetrics metrics, Handler ui,
                          Listener listener) {
+        this(context, policy, metrics, ui, listener, null);
+    }
+
+    /** Client facade used by the Activity; the service, not this facade, owns the transfer worker. */
+    public FileDownloads(Context context, PolicyConfig policy, PolicyMetrics metrics, Handler ui,
+                         Listener listener, BackgroundStarter backgroundStarter) {
         if (context == null || policy == null || metrics == null || ui == null || listener == null) {
             throw new IllegalArgumentException("downloads need a context, policy, metrics, handler and listener");
         }
@@ -112,6 +123,12 @@ public final class FileDownloads {
         this.metrics = metrics;
         this.ui = ui;
         this.listener = listener;
+        this.backgroundStarter = backgroundStarter;
+        this.worker = backgroundStarter == null ? Executors.newSingleThreadExecutor(runnable -> {
+            Thread thread = new Thread(runnable, "github-download");
+            thread.setDaemon(true);
+            return thread;
+        }) : null;
     }
 
     /**
@@ -137,6 +154,11 @@ public final class FileDownloads {
             postFailed(plan.fileName(), "the network guard is not running");
             return false;
         }
+        if (backgroundStarter != null) {
+            // This client facade never owns work. The Activity reports a synchronous failure if
+            // notification permission or foreground-service startup prevents accepting the request.
+            return backgroundStarter.start(url, contentDisposition, mimeType, contentLength);
+        }
         if (!busy.compareAndSet(false, true)) {
             postFailed(plan.fileName(), "another download is already running");
             return false;
@@ -154,6 +176,10 @@ public final class FileDownloads {
 
     /** Cancel the running transfer. The partial file is deleted; a no-op when nothing is running. */
     public void cancel() {
+        if (backgroundStarter != null) {
+            backgroundStarter.cancel();
+            return;
+        }
         cancelled.set(true);
         HttpURLConnection connection = open.getAndSet(null);
         if (connection != null) {
@@ -167,6 +193,8 @@ public final class FileDownloads {
 
     /** Stop the worker when the activity goes away. Idempotent. */
     public void shutdown() {
+        // The Activity-facing facade deliberately owns no worker and must never cancel the service.
+        if (backgroundStarter != null) return;
         cancel();
         worker.shutdownNow();
     }
@@ -330,6 +358,38 @@ public final class FileDownloads {
         return total;
     }
 
+    /** Remove files/rows left pending if Android killed the app process during a transfer. */
+    public static void cleanupInterruptedDestinations(Context context) {
+        if (context == null) return;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            ContentResolver resolver = context.getContentResolver();
+            String[] projection = {MediaStore.Downloads._ID};
+            try (Cursor cursor = resolver.query(MediaStore.Downloads.EXTERNAL_CONTENT_URI, projection,
+                    MediaStore.Downloads.IS_PENDING + "=1", null, null)) {
+                if (cursor != null) {
+                    while (cursor.moveToNext()) {
+                        Uri item = Uri.withAppendedPath(MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                                String.valueOf(cursor.getLong(0)));
+                        resolver.delete(item, null, null);
+                    }
+                }
+            } catch (RuntimeException e) {
+                Log.w(TAG, "could not clean interrupted pending Downloads rows", e);
+            }
+        }
+        File folder = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
+        if (folder == null) folder = new File(context.getFilesDir(), "downloads");
+        File[] partials = folder.listFiles((dir, name) -> name.startsWith(".github-download-")
+                && name.endsWith(".part"));
+        if (partials != null) {
+            for (File partial : partials) {
+                if (partial.isFile() && !partial.delete()) {
+                    Log.w(TAG, "could not remove interrupted partial download " + partial.getName());
+                }
+            }
+        }
+    }
+
     // ---------------------------------------------------------------------------------------------
     // Where it is saved
     // ---------------------------------------------------------------------------------------------
@@ -412,9 +472,13 @@ public final class FileDownloads {
             ContentValues values = new ContentValues();
             values.put(MediaStore.Downloads.IS_PENDING, 0);
             try {
-                resolver.update(item, values, null, null);
+                int updated = resolver.update(item, values, null, null);
+                if (updated != 1) {
+                    throw new IllegalStateException("the Downloads row could not be published");
+                }
             } catch (RuntimeException e) {
                 Log.w(TAG, "could not finish the MediaStore row", e);
+                throw e;
             }
         }
 
@@ -443,10 +507,12 @@ public final class FileDownloads {
      */
     private static final class AppFolderDestination implements Destination {
         private final File file;
+        private final File partial;
         private final OutputStream output;
 
-        private AppFolderDestination(File file, OutputStream output) {
+        private AppFolderDestination(File file, File partial, OutputStream output) {
             this.file = file;
+            this.partial = partial;
             this.output = output;
         }
 
@@ -459,13 +525,14 @@ public final class FileDownloads {
                 throw new IOException("could not create the app's Downloads folder");
             }
             File file = unique(folder, name);
+            File partial = new File(folder, ".github-download-" + UUID.randomUUID() + ".part");
             OutputStream output = null;
             try {
-                output = new FileOutputStream(file);
+                output = new FileOutputStream(partial);
             } catch (IOException e) {
-                throw new IOException("could not create " + file.getName(), e);
+                throw new IOException("could not create a temporary download file", e);
             }
-            return new AppFolderDestination(file, output);
+            return new AppFolderDestination(file, partial, output);
         }
 
         private static File unique(File folder, String name) {
@@ -493,13 +560,16 @@ public final class FileDownloads {
         @Override
         public void commit() {
             closeQuietly(output);
+            if (!partial.renameTo(file)) {
+                throw new IllegalStateException("could not publish the completed download");
+            }
         }
 
         @Override
         public void abort() {
             closeQuietly(output);
-            if (file.exists() && !file.delete()) {
-                Log.w(TAG, "could not delete the partial download " + file.getName());
+            if (partial.exists() && !partial.delete()) {
+                Log.w(TAG, "could not delete the partial download " + partial.getName());
             }
         }
 
