@@ -53,7 +53,7 @@
       "adaptedCodeSha256": "f54811715ebe52aafae1b026872bc7a05fd2aa2ea8e10ebc67adffed2f8e350f",
       "reviewedException": {
         "summary": "Tracks the last verified GitHub page and download lifecycle; watchdog/recovery preserve workflow context during resource-only artifact redirects and return to the last verified page for unauthorized navigation.",
-        "rationale": "Fixes the reported Actions artifact download homepage reset at its navigation-state root. A resource-only host reached during an active download is not a page navigation; the watchdog suppresses recovery for that case and records no artifact host as a page. Actual unauthorized top-level navigation remains blocked and recovers to the last verified approved page. Download completion/failure/cancellation/refusal balances state. Signed URLs are not logged by recovery diagnostics. The allowlist remains narrow and resource-only; EgressGuard, per-hop validation, redirect and size protections are unchanged.",
+        "rationale": "Fixes the reported Actions artifact download homepage reset at its navigation-state root. A resource-only host reached during an active download is not a page navigation; the watchdog suppresses recovery for that case and records no artifact host as a page. Actual unauthorized top-level navigation remains blocked and recovers to the last verified approved page. Download completion/failure/cancellation/refusal balances state. Signed URLs are not logged by recovery diagnostics. The allowlist remains narrow and resource-only; EgressGuard, per-hop validation, redirect and size protections are unchanged. This reviewed extension makes the Activity a client of a lifecycle-independent foreground service and renders persisted download status without owning or cancelling the service worker on Activity destruction.",
         "requiredTokens": [
           "verdict",
           "FileDownloads",
@@ -74,13 +74,20 @@
           "offendingUrl",
           "destinationHost",
           ",",
-          "null"
+          "null",
+          "BackgroundDownloadService",
+          "DownloadStateStore",
+          "startBackgroundDownload",
+          "retryLastDownload",
+          "cancelBackgroundDownload",
+          "onStart",
+          "onStop"
         ],
         "forbiddenTokens": [
           "\"Downloads are disabled in this app\"",
           "\"loadVerifiedDestination(policy.primaryUrl(), \\\"watchdog\\\")\""
         ],
-        "adaptedCodeSha256": "dc1d77fc42083927123703cb04b99c735502c89bfd77a51256b17deab1b02041"
+        "adaptedCodeSha256": "6cba724680c0aaf2796de4af776fe309d5f04af1f0a3cf4f9828685e8b049ffb"
       }
     },
     "app/src/main/java/app/githubwebview/locked/net/EgressProxy.java": {
@@ -269,7 +276,7 @@
         "forbiddenTokens": [
           "BlockingDownloadListener"
         ],
-        "adaptedCodeSha256": "779c9d763bca33a87823ff67a1f5e383a00e09f3f810d9a7f21fedd6e4eac37b"
+        "adaptedCodeSha256": "e6d1a9e04d2fa0cea70424702b4c51e8b84aef28849997688f96494fc3f76828"
       }
     }
   },
@@ -279,8 +286,8 @@
       "codeSha256": "67f4f167d672661c09158ad453579ba90639fc34272c37c2925bb9f29c64ecfb"
     },
     "app/src/main/java/app/githubwebview/locked/net/FileDownloads.java": {
-      "purpose": "Fetches a download through the loopback egress guard (no direct connection), re-validates every redirect hop, and saves through MediaStore (Android 10+) or the app's own folder (7-9). No storage permission, no platform download manager, no other app.",
-      "codeSha256": "074c7a3ffddd2a46ab0e8a2d8ca4ffd25bd9cabf2b425377b56353b7b2222358"
+      "purpose": "Fetches a download through the loopback egress guard (no direct connection), re-validates every redirect hop, and saves through MediaStore (Android 10+) or the app's own folder (7-9). No storage permission, no platform download manager, no other app. An Activity-facing facade delegates to the foreground service; app-folder output is staged in a hidden temporary file and atomically published only after success, with stale partial cleanup.",
+      "codeSha256": "20a03945edc32aa6d047468d59e9ae3b02429252d4f623b3ec922a3280ce623f"
     },
     "app/src/main/java/app/githubwebview/locked/policy/HostPatternEntry.java": {
       "purpose": "Anchored, case-insensitive, resource-only host pattern with complete-host matching and synthesized exact asset entries; used only for GitHub Actions results storage endpoints.",
@@ -289,6 +296,14 @@
     "app/src/main/java/app/githubwebview/locked/policy/NavigationStateTracker.java": {
       "purpose": "Pure-Java tracker for last verified page and active download count; separates resource-only download redirects from unauthorized navigation and provides safe recovery targets.",
       "codeSha256": "a2e251187b1585bf426928d3b7b25d6926bbdf92c6c92184c6e3fa792768503f"
+    },
+    "app/src/main/java/app/githubwebview/locked/net/BackgroundDownloadService.java": {
+      "purpose": "Private foreground service owns the single download worker independently of Activity lifecycle; notification progress/cancel, persisted status, guarded retry after process recreation, and no sticky stale-URL restart.",
+      "codeSha256": "8cbdb449396032b463ffce2932ec6c984fe53328c4d5d9a5315eecd96c139785"
+    },
+    "app/src/main/java/app/githubwebview/locked/net/DownloadStateStore.java": {
+      "purpose": "App-private persisted download status and retry metadata; interrupted transfers remain incomplete and stale temporary destinations are cleaned before user-requested revalidation.",
+      "codeSha256": "3c33d0e848641dde8129c603be593a5800273b0aa42cbd1d968860ddfc4f5dcb"
     }
   }
 }
