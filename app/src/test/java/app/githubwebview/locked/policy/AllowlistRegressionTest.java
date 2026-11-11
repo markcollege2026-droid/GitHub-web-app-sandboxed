@@ -81,26 +81,6 @@ public class AllowlistRegressionTest {
             "github-production-user-asset-6210df.s3.amazonaws.com",
             "github-production-repository-image-32fea6.s3.amazonaws.com",
             "github-production-release-asset-2e65be.s3.amazonaws.com",
-            "productionresultssa0.blob.core.windows.net",
-            "productionresultssa1.blob.core.windows.net",
-            "productionresultssa2.blob.core.windows.net",
-            "productionresultssa3.blob.core.windows.net",
-            "productionresultssa4.blob.core.windows.net",
-            "productionresultssa5.blob.core.windows.net",
-            "productionresultssa6.blob.core.windows.net",
-            "productionresultssa7.blob.core.windows.net",
-            "productionresultssa8.blob.core.windows.net",
-            "productionresultssa9.blob.core.windows.net",
-            "productionresultssa10.blob.core.windows.net",
-            "productionresultssa11.blob.core.windows.net",
-            "productionresultssa12.blob.core.windows.net",
-            "productionresultssa13.blob.core.windows.net",
-            "productionresultssa14.blob.core.windows.net",
-            "productionresultssa15.blob.core.windows.net",
-            "productionresultssa16.blob.core.windows.net",
-            "productionresultssa17.blob.core.windows.net",
-            "productionresultssa18.blob.core.windows.net",
-            "productionresultssa19.blob.core.windows.net",
             "images.ctfassets.net",
             "videos.ctfassets.net");
 
@@ -299,7 +279,7 @@ public class AllowlistRegressionTest {
                 "github.com.evil.example",
                 "mygithub.com",
                 "github.net",
-                // Other cloud buckets are NOT implied by the exact GitHub bucket entries:
+                // Other cloud buckets are NOT implied by the narrow Actions results-storage pattern:
                 "unapproved.s3.amazonaws.com",
                 "other.blob.core.windows.net",
                 "productionresultssa20.blob.core.windows.net",
@@ -378,6 +358,128 @@ public class AllowlistRegressionTest {
         assertTrue(description.contains("start=https://github.com/"));
         for (String host : EXPECTED_FIRST_PARTY_HOSTS) {
             assertTrue("description must mention " + host, description.contains("allow " + host));
+        }
+        assertTrue("description must mention the results storage pattern",
+                description.contains("productionresultssa<digits>.blob.core.windows.net"));
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // GitHub Actions results storage pattern (productionresultssaN.blob.core.windows.net)
+    // -----------------------------------------------------------------------------------------
+
+    @Test
+    public void resultsStoragePatternIsTheSingleResourceOnlyPattern() {
+        java.util.List<HostPatternEntry> patterns = GitHubAllowlist.resourceHostPatterns();
+        assertEquals(1, patterns.size());
+        HostPatternEntry pattern = patterns.get(0);
+        assertEquals("productionresultssa<digits>.blob.core.windows.net", pattern.description());
+        assertTrue(pattern.isResourceOnly());
+        assertEquals(AllowEntry.Role.ASSET, pattern.role());
+        assertTrue("the pattern must be path-unrestricted like the exact entries it replaces",
+                pattern.pathPrefixes().isEmpty());
+        assertFalse(pattern.purpose().isEmpty());
+        // The production policy carries exactly this pattern, and no exact entry duplicates it.
+        PolicyConfig config = GitHubAllowlist.productionConfig();
+        assertEquals(patterns, config.hostPatterns());
+        for (AllowEntry entry : config.entries()) {
+            assertFalse("no exact entry may duplicate the pattern host family: " + entry.host(),
+                    entry.host().startsWith("productionresultssa"));
+        }
+    }
+
+    @Test
+    public void resultsStoragePatternAcceptsEveryNumericEndpointAsResourceOnly() {
+        PolicyConfig config = GitHubAllowlist.productionConfig();
+        String[] accepted = {
+                "productionresultssa0.blob.core.windows.net",
+                "productionresultssa19.blob.core.windows.net",
+                "productionresultssa30.blob.core.windows.net",
+                "productionresultssa49.blob.core.windows.net",
+                "productionresultssa100.blob.core.windows.net",
+                "productionresultssa199.blob.core.windows.net",
+                "productionresultssa200.blob.core.windows.net",
+                "productionresultssa9999.blob.core.windows.net",
+        };
+        for (String host : accepted) {
+            String url = "https://" + host + "/actions-results/artifact.zip?sig=x";
+            assertTrue(host + " must be a results storage host", GitHubAllowlist.isProductionResultsHost(host));
+            assertTrue(host + " as sub-resource", config.evaluateRequest(url).isAllowed());
+            assertTrue(host + " as embedded document", config.evaluateSubdocument(url).isAllowed());
+            assertTrue(host + " as tunnel", config.evaluateTunnel(host, 443).isAllowed());
+            PolicyResult navigation = config.evaluateNavigation(url);
+            assertFalse(host + " must never become a page", navigation.isAllowed());
+            assertEquals(host, BlockReason.DOCUMENT_NOT_ALLOWED, navigation.reason());
+            assertFalse(host + " must not be a product page", config.isProductNavigation(url));
+            assertFalse(host + " must not be a sign-in page", config.isSignInNavigation(url));
+            AllowEntry matched = config.findByHost(host);
+            assertNotNull(host, matched);
+            assertTrue(host + " matched entry must be resource-only", matched.isResourceOnly());
+            assertEquals(host, matched.host());
+        }
+    }
+
+    @Test
+    public void resultsStoragePatternMatchesCaseInsensitively() {
+        PolicyConfig config = GitHubAllowlist.productionConfig();
+        assertTrue(config.evaluateRequest("https://PRODUCTIONRESULTSSA30.BLOB.CORE.WINDOWS.NET/x").isAllowed());
+        assertTrue(GitHubAllowlist.isProductionResultsHost("PRODUCTIONRESULTSSA30.BLOB.CORE.WINDOWS.NET"));
+        PolicyResult navigation = config.evaluateNavigation(
+                "https://PRODUCTIONRESULTSSA30.BLOB.CORE.WINDOWS.NET/x");
+        assertFalse(navigation.isAllowed());
+        assertEquals(BlockReason.DOCUMENT_NOT_ALLOWED, navigation.reason());
+    }
+
+    @Test
+    public void resultsStoragePatternRejectsLookAlikes() {
+        PolicyConfig config = GitHubAllowlist.productionConfig();
+        String[] rejected = {
+                "productionresultssa30.blob.core.windows.net.evil.example",
+                "evilproductionresultssa30.blob.core.windows.net",
+                "productionresultssaX.blob.core.windows.net",
+                "productionresultssa.blob.core.windows.net",
+                "productionresultssa30.blob.core.windows.net.",
+                "unrelated.blob.core.windows.net",
+                "productionresultssa30.blob.core.windows.net.evil.com",
+                "productionresultssa-30.blob.core.windows.net",
+                "productionresultssa30a.blob.core.windows.net",
+                "productionresultssa30.blob.core.windows.netx",
+                "productionresultssa30.blob.core.windows.ne",
+                "productionresultssa30.blob.core.windows.net:8443",
+        };
+        for (String host : rejected) {
+            assertFalse(host, GitHubAllowlist.isProductionResultsHost(host));
+            String url = "https://" + host + "/x";
+            assertFalse(host + " as sub-resource", config.evaluateRequest(url).isAllowed());
+            assertFalse(host + " as embedded document", config.evaluateSubdocument(url).isAllowed());
+            assertFalse(host + " as navigation", config.evaluateNavigation(url).isAllowed());
+            // The tunnel API accepts a bare host separately from the port argument; a colon
+            // embedded in the hostname is malformed and must not be stripped into an allowed host.
+            assertFalse(host + " as tunnel", config.evaluateTunnel(host, 443).isAllowed());
+        }
+        // The exact rejected reasons for the four cases named in the task.
+        assertEquals(BlockReason.HOST_NOT_ALLOWED,
+                config.evaluateRequest("https://productionresultssa30.blob.core.windows.net.evil.example/x").reason());
+        assertEquals(BlockReason.HOST_NOT_ALLOWED,
+                config.evaluateRequest("https://evilproductionresultssa30.blob.core.windows.net/x").reason());
+        assertEquals(BlockReason.HOST_NOT_ALLOWED,
+                config.evaluateRequest("https://productionresultssaX.blob.core.windows.net/x").reason());
+        assertEquals(BlockReason.HOST_NOT_ALLOWED,
+                config.evaluateRequest("https://unrelated.blob.core.windows.net/x").reason());
+    }
+
+    @Test
+    public void resultsStoragePatternIsNotABroadAzurePermission() {
+        PolicyConfig config = GitHubAllowlist.productionConfig();
+        for (String host : new String[]{
+                "blob.core.windows.net",
+                "core.windows.net",
+                "windows.net",
+                "productionresultssa30.blob.core.windows.net.evil.example",
+                "other.blob.core.windows.net",
+                "productionresults.blob.core.windows.net",
+                "productionresultssa30.blob.core.windows.net.attacker.example"}) {
+            assertFalse(host, config.evaluateRequest("https://" + host + "/x").isAllowed());
+            assertFalse(host, config.evaluateTunnel(host, 443).isAllowed());
         }
     }
 }

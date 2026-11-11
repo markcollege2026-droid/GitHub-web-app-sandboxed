@@ -78,6 +78,29 @@ public class ManifestPolicyTest {
     }
 
     @Test
+    public void applockAutomaticEnrollmentExemptionIsDeclaredOnceOnApplication() throws Exception {
+        Document manifest = parse(TestPaths.manifest());
+        List<Element> applications = children(manifest.getDocumentElement(), "application");
+        assertEquals("one application element", 1, applications.size());
+        List<Element> markers = new ArrayList<Element>();
+        for (Element metadata : children(applications.get(0), "meta-data")) {
+            if ("dev.pranav.applock.AUTOLOCK_EXEMPT".equals(androidAttr(metadata, "name"))) {
+                markers.add(metadata);
+            }
+        }
+        assertEquals("exactly one AppLock automatic-enrollment marker", 1, markers.size());
+        assertEquals("true", androidAttr(markers.get(0), "value"));
+
+        // The marker is only application metadata, not an activity-level declaration.
+        for (Element activity : children(applications.get(0), "activity")) {
+            for (Element metadata : children(activity, "meta-data")) {
+                assertFalse("marker must not be attached to an activity",
+                        "dev.pranav.applock.AUTOLOCK_EXEMPT".equals(androidAttr(metadata, "name")));
+            }
+        }
+    }
+
+    @Test
     public void thereIsExactlyOneExportedComponent() throws Exception {
         Document manifest = parse(TestPaths.manifest());
         Element application = children(manifest.getDocumentElement(), "application").get(0);

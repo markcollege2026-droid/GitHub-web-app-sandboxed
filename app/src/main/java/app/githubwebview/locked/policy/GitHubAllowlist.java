@@ -11,8 +11,13 @@ import java.util.Map;
  *
  * <p>PRODUCT = github.com and its www redirect. SIGN_IN = accounts.google.com only.
  * All other entries are ASSET: requests and embedded documents, never top-level pages, redirects
- * or pop-up destinations. Exact hosts only; no suffix matches, wildcards, remote configuration or
- * user approvals. Every connection still passes the original CONNECT proxy on port 443.</p>
+ * or pop-up destinations. Exact hosts only, with one narrowly scoped exception: GitHub Actions
+ * results storage hosts are matched by the exact structure
+ * {@code productionresultssa<digits>.blob.core.windows.net} (see {@link #resourceHostPatterns()}),
+ * because the numeric endpoint grows over time and an enumerated list breaks on every expansion.
+ * That pattern is anchored to the complete hostname, is resource-only, and is not a suffix match,
+ * a wildcard, remote configuration or a user approval. Every connection still passes the
+ * original CONNECT proxy on port 443.</p>
  *
  * <p>Host evidence and limitations are in docs/DOMAINS.md. GitHub's response CSP is evidence of
  * service names, NOT a policy to copy wholesale: telemetry, arbitrary clouds, Pages, Copilot,
@@ -62,7 +67,14 @@ public final class GitHubAllowlist {
         // no instances
     }
 
-    /** The complete set of hosts this build accepts, in a stable order. */
+    /**
+     * The complete set of exact hosts this build accepts, in a stable order.
+     *
+     * <p>Hosts matched by {@link #resourceHostPatterns()} are not enumerated here because the set
+     * is open-ended by design; use {@link #isProductionResultsHost(String)} or
+     * {@link PolicyConfig#isAllowedHost(String)} to ask about a specific pattern host. The
+     * diagnostics report prints the patterns through {@link PolicyConfig#describe()}.</p>
+     */
     public static List<String> allowedHosts() {
         List<String> hosts = new ArrayList<String>();
         for (AllowEntry entry : activeEntries()) {
@@ -166,46 +178,9 @@ public final class GitHubAllowlist {
                 "Exact GitHub repository-image bucket in the site CSP."));
         entries.add(AllowEntry.resourceOnly("github-production-release-asset-2e65be.s3.amazonaws.com", Collections.<String>emptyList(),
                 "Exact GitHub release-asset bucket in the site CSP."));
-        entries.add(AllowEntry.resourceOnly("productionresultssa0.blob.core.windows.net", Collections.<String>emptyList(),
-                "Exact GitHub Actions results/log storage account listed in the site CSP; never a page."));
-        entries.add(AllowEntry.resourceOnly("productionresultssa1.blob.core.windows.net", Collections.<String>emptyList(),
-                "Exact GitHub Actions results/log storage account listed in the site CSP; never a page."));
-        entries.add(AllowEntry.resourceOnly("productionresultssa2.blob.core.windows.net", Collections.<String>emptyList(),
-                "Exact GitHub Actions results/log storage account listed in the site CSP; never a page."));
-        entries.add(AllowEntry.resourceOnly("productionresultssa3.blob.core.windows.net", Collections.<String>emptyList(),
-                "Exact GitHub Actions results/log storage account listed in the site CSP; never a page."));
-        entries.add(AllowEntry.resourceOnly("productionresultssa4.blob.core.windows.net", Collections.<String>emptyList(),
-                "Exact GitHub Actions results/log storage account listed in the site CSP; never a page."));
-        entries.add(AllowEntry.resourceOnly("productionresultssa5.blob.core.windows.net", Collections.<String>emptyList(),
-                "Exact GitHub Actions results/log storage account listed in the site CSP; never a page."));
-        entries.add(AllowEntry.resourceOnly("productionresultssa6.blob.core.windows.net", Collections.<String>emptyList(),
-                "Exact GitHub Actions results/log storage account listed in the site CSP; never a page."));
-        entries.add(AllowEntry.resourceOnly("productionresultssa7.blob.core.windows.net", Collections.<String>emptyList(),
-                "Exact GitHub Actions results/log storage account listed in the site CSP; never a page."));
-        entries.add(AllowEntry.resourceOnly("productionresultssa8.blob.core.windows.net", Collections.<String>emptyList(),
-                "Exact GitHub Actions results/log storage account listed in the site CSP; never a page."));
-        entries.add(AllowEntry.resourceOnly("productionresultssa9.blob.core.windows.net", Collections.<String>emptyList(),
-                "Exact GitHub Actions results/log storage account listed in the site CSP; never a page."));
-        entries.add(AllowEntry.resourceOnly("productionresultssa10.blob.core.windows.net", Collections.<String>emptyList(),
-                "Exact GitHub Actions results/log storage account listed in the site CSP; never a page."));
-        entries.add(AllowEntry.resourceOnly("productionresultssa11.blob.core.windows.net", Collections.<String>emptyList(),
-                "Exact GitHub Actions results/log storage account listed in the site CSP; never a page."));
-        entries.add(AllowEntry.resourceOnly("productionresultssa12.blob.core.windows.net", Collections.<String>emptyList(),
-                "Exact GitHub Actions results/log storage account listed in the site CSP; never a page."));
-        entries.add(AllowEntry.resourceOnly("productionresultssa13.blob.core.windows.net", Collections.<String>emptyList(),
-                "Exact GitHub Actions results/log storage account listed in the site CSP; never a page."));
-        entries.add(AllowEntry.resourceOnly("productionresultssa14.blob.core.windows.net", Collections.<String>emptyList(),
-                "Exact GitHub Actions results/log storage account listed in the site CSP; never a page."));
-        entries.add(AllowEntry.resourceOnly("productionresultssa15.blob.core.windows.net", Collections.<String>emptyList(),
-                "Exact GitHub Actions results/log storage account listed in the site CSP; never a page."));
-        entries.add(AllowEntry.resourceOnly("productionresultssa16.blob.core.windows.net", Collections.<String>emptyList(),
-                "Exact GitHub Actions results/log storage account listed in the site CSP; never a page."));
-        entries.add(AllowEntry.resourceOnly("productionresultssa17.blob.core.windows.net", Collections.<String>emptyList(),
-                "Exact GitHub Actions results/log storage account listed in the site CSP; never a page."));
-        entries.add(AllowEntry.resourceOnly("productionresultssa18.blob.core.windows.net", Collections.<String>emptyList(),
-                "Exact GitHub Actions results/log storage account listed in the site CSP; never a page."));
-        entries.add(AllowEntry.resourceOnly("productionresultssa19.blob.core.windows.net", Collections.<String>emptyList(),
-                "Exact GitHub Actions results/log storage account listed in the site CSP; never a page."));
+        // GitHub Actions results/log storage hosts are NOT enumerated here. Their numeric endpoint
+        // grows over time (0-19, then 30-49, then 100-199, ...), so they are matched by the single
+        // anchored pattern in resourceHostPatterns() instead. See that method for the exact rule.
         entries.add(AllowEntry.resourceOnly("images.ctfassets.net", paths("/8aevphvgewt8/"),
                 "GitHub homepage media, restricted to the GitHub Contentful space observed in its HTML."));
         entries.add(AllowEntry.resourceOnly("videos.ctfassets.net", paths("/8aevphvgewt8/"),
@@ -298,9 +273,48 @@ public final class GitHubAllowlist {
         return false;
     }
 
+    /**
+     * The one host pattern in this build: GitHub Actions results/log storage accounts.
+     *
+     * <p>The complete hostname must be {@code productionresultssa} followed by one or more ASCII
+     * digits followed by {@code .blob.core.windows.net}. The match is anchored to the complete
+     * hostname (see {@link HostPatternEntry#matchesHost(String)}), so look-alikes such as
+     * {@code productionresultssa30.blob.core.windows.net.evil.example},
+     * {@code evilproductionresultssa30.blob.core.windows.net},
+     * {@code productionresultssaX.blob.core.windows.net} and
+     * {@code unrelated.blob.core.windows.net} never match. Matching is case-insensitive because
+     * the policy canonicalizes hosts to lower case before lookup.</p>
+     *
+     * <p>The pattern is resource-only: a matched host may serve sub-resources, embedded documents
+     * and downloads, and may be tunnelled to on port 443 through the egress guard, but it may
+     * never become the visible page. That separation is enforced by the document question in
+     * {@link UrlPolicy}, not by this list.</p>
+     */
+    public static List<HostPatternEntry> resourceHostPatterns() {
+        List<HostPatternEntry> patterns = new ArrayList<HostPatternEntry>();
+        patterns.add(HostPatternEntry.resourceOnly(
+                "productionresultssa<digits>.blob.core.windows.net",
+                "productionresultssa[0-9]+\\.blob\\.core\\.windows\\.net",
+                Collections.<String>emptyList(),
+                "GitHub Actions results/log storage accounts (productionresultssaN.blob.core.windows.net); "
+                        + "numeric endpoint varies and grows over time, so the host is matched by this exact "
+                        + "structure rather than an enumerated list; never a page."));
+        return Collections.unmodifiableList(patterns);
+    }
+
+    /** True when the canonical host is a GitHub Actions results storage host under the pattern above. */
+    public static boolean isProductionResultsHost(String canonicalHost) {
+        for (HostPatternEntry pattern : resourceHostPatterns()) {
+            if (pattern.matchesHost(canonicalHost)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** Build the policy enforced by this build. */
     public static PolicyConfig productionConfig() {
-        return new PolicyConfig(PRIMARY_URL, activeEntries());
+        return new PolicyConfig(PRIMARY_URL, activeEntries(), resourceHostPatterns());
     }
 
     // -----------------------------------------------------------------------------------------------

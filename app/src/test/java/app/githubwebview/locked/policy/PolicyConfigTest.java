@@ -112,6 +112,40 @@ public class PolicyConfigTest {
     }
 
     @Test
+    public void aPatternMatchSynthesizesAnExactResourceOnlyEntryAndExactWins() {
+        HostPatternEntry pattern = HostPatternEntry.resourceOnly(
+                "example<digits>.example", "example[0-9]+\\.example",
+                Collections.<String>emptyList(), "test pattern");
+        PolicyConfig config = new PolicyConfig("https://github.com/",
+                Arrays.asList(PRODUCT, AUTH), Collections.singletonList(pattern));
+        AllowEntry matched = config.findByHost("example42.example");
+        assertNotNull(matched);
+        assertEquals("example42.example", matched.host());
+        assertTrue(matched.isResourceOnly());
+        assertNull(config.findByHost("exampleX.example"));
+        assertNull(config.findByHost("example42.example.evil.example"));
+        assertTrue(config.isAllowedHost("example42.example"));
+        assertFalse(config.isAllowedHost("exampleX.example"));
+        // A policy without patterns has no pattern hosts.
+        PolicyConfig plain = new PolicyConfig("https://github.com/", Arrays.asList(PRODUCT, AUTH));
+        assertTrue(plain.hostPatterns().isEmpty());
+        assertNull(plain.findByHost("example42.example"));
+    }
+
+    @Test
+    public void aNonResourceOnlyPatternIsAProgrammingError() {
+        // Patterns are resource-only by construction in this build; the factory only makes
+        // resource-only patterns, so this guards the constructor check itself via a null entry.
+        try {
+            new PolicyConfig("https://github.com/", Arrays.asList(PRODUCT, AUTH),
+                    Arrays.asList((HostPatternEntry) null));
+            fail("null pattern must be refused");
+        } catch (IllegalArgumentException expected) {
+            // ok
+        }
+    }
+
+    @Test
     public void entriesAreCopiedAndReadOnly() {
         List<AllowEntry> source = new java.util.ArrayList<AllowEntry>(Arrays.asList(PRODUCT, AUTH));
         PolicyConfig config = new PolicyConfig("https://github.com/", source);

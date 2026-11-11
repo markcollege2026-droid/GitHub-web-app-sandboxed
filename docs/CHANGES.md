@@ -7,12 +7,10 @@ Every old production source has a named counterpart. The 20-file executable-code
 independently pinned by `upstream-core-fingerprints.json` and verified by CI.
 
 Imported code is still unchanged except for the recorded exceptions: site policy/branding/build
-identity, the UA-honesty change, and (since the 2026-10-20 download work) refusal reporting plus the
-download listener. The download feature added **two production files** of its own
-(`net/DownloadPlan.java`, `net/FileDownloads.java`), recorded with pinned hashes in
-`upstream-core-fingerprints.json#addedProductionFiles`. No new Activity, dashboard, settings, approval
-flow, WebView implementation, input handler or proxy was introduced; the downloader reuses the
-existing proxy rather than adding a network stack of its own.
+identity, the UA-honesty change, and the reviewed behavior changes listed below. Production additions
+are pinned in `upstream-core-fingerprints.json#addedProductionFiles`. No new Activity, dashboard,
+settings, approval flow, WebView implementation, input handler or proxy was introduced; downloads
+reuse the existing proxy rather than adding a network stack of their own.
 
 ## Post-import review: downloads (2026-10-20)
 

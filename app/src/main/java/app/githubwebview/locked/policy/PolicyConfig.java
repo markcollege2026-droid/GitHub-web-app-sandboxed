@@ -33,6 +33,7 @@ public final class PolicyConfig {
 
     private final String primaryUrl;
     private final List<AllowEntry> entries;
+    private final List<HostPatternEntry> hostPatterns;
 
     /** Exact host to entry. Built once; a host can appear at most once, which the constructor enforces. */
     private final Map<String, AllowEntry> entriesByHost;
@@ -45,6 +46,18 @@ public final class PolicyConfig {
      *                                  enforced. That is a programming error, so it fails at start-up.
      */
     public PolicyConfig(String primaryUrl, List<AllowEntry> entries) {
+        this(primaryUrl, entries, Collections.<HostPatternEntry>emptyList());
+    }
+
+    /**
+     * @param primaryUrl   the app's start page; must itself pass {@link #evaluateNavigation(String)}
+     * @param entries      exact host entries (the norm)
+     * @param hostPatterns narrowly scoped resource-only host patterns for families whose exact
+     *                     host varies by a numeric endpoint (see {@link HostPatternEntry}). An exact
+     *                     entry always wins over a pattern for the same host.
+     */
+    public PolicyConfig(String primaryUrl, List<AllowEntry> entries,
+                        List<HostPatternEntry> hostPatterns) {
         if (primaryUrl == null || primaryUrl.isEmpty()) {
             throw new IllegalArgumentException("primaryUrl must not be empty");
         }
@@ -61,8 +74,26 @@ public final class PolicyConfig {
                 throw new IllegalArgumentException("host listed twice in the allow-list: " + entry.host());
             }
         }
+        List<HostPatternEntry> patternCopy = new ArrayList<HostPatternEntry>();
+        if (hostPatterns != null) {
+            for (HostPatternEntry pattern : hostPatterns) {
+                if (pattern == null) {
+                    throw new IllegalArgumentException("host pattern entries must not be null");
+                }
+                if (!pattern.isResourceOnly()) {
+                    throw new IllegalArgumentException(
+                            "host patterns must be resource-only: " + pattern.description());
+                }
+                if (patternCopy.contains(pattern)) {
+                    throw new IllegalArgumentException(
+                            "host pattern listed twice in the allow-list: " + pattern.description());
+                }
+                patternCopy.add(pattern);
+            }
+        }
         this.primaryUrl = primaryUrl;
         this.entries = Collections.unmodifiableList(copy);
+        this.hostPatterns = Collections.unmodifiableList(patternCopy);
         this.entriesByHost = byHost;
 
         // Fail loudly at start-up if the configured start page would not pass the configured policy.
@@ -83,6 +114,11 @@ public final class PolicyConfig {
 
     public List<AllowEntry> entries() {
         return entries;
+    }
+
+    /** Narrowly scoped resource-only host patterns (empty for policies without any). */
+    public List<HostPatternEntry> hostPatterns() {
+        return hostPatterns;
     }
 
     /** Evaluate a URL that can become (or become part of) a rendered document. */
@@ -139,9 +175,33 @@ public final class PolicyConfig {
         return entry != null && entry.isProduct();
     }
 
-    /** Find the entry for a canonical host, or null. Exact match only; there is nothing to iterate. */
+    /**
+     * Find the entry for a canonical host, or null.
+     *
+     * <p>Exact entries win. Only when no exact entry matches are the resource-only host patterns
+     * consulted, in order, and a pattern match synthesizes the exact entry for that host. The
+     * pattern match is anchored to the complete hostname, so a look-alike that merely contains
+     * the pattern text never matches.</p>
+     */
     AllowEntry findByHost(String canonicalHost) {
-        return canonicalHost == null ? null : entriesByHost.get(canonicalHost);
+        if (canonicalHost == null) {
+            return null;
+        }
+        AllowEntry exact = entriesByHost.get(canonicalHost);
+        if (exact != null) {
+            return exact;
+        }
+        for (HostPatternEntry pattern : hostPatterns) {
+            if (pattern.matchesHost(canonicalHost)) {
+                return pattern.toEntry(canonicalHost);
+            }
+        }
+        return null;
+    }
+
+    /** True when the canonical host is allow-listed, exactly or through a resource-only pattern. */
+    public boolean isAllowedHost(String canonicalHost) {
+        return findByHost(canonicalHost) != null;
     }
 
     /** Human readable dump of the whole policy, used by the diagnostics report and by tests. */
@@ -150,6 +210,9 @@ public final class PolicyConfig {
         sb.append("start=").append(primaryUrl).append('\n');
         for (AllowEntry entry : entries) {
             sb.append("allow ").append(entry.describe()).append('\n');
+        }
+        for (HostPatternEntry pattern : hostPatterns) {
+            sb.append("allow ").append(pattern.describe()).append('\n');
         }
         return sb.toString();
     }

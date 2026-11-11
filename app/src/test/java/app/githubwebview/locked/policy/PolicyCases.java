@@ -99,25 +99,12 @@ public final class PolicyCases {
                 "github-production-repository-image-32fea6.s3.amazonaws.com",
                 "github-production-release-asset-2e65be.s3.amazonaws.com",
                 "productionresultssa0.blob.core.windows.net",
-                "productionresultssa1.blob.core.windows.net",
-                "productionresultssa2.blob.core.windows.net",
-                "productionresultssa3.blob.core.windows.net",
-                "productionresultssa4.blob.core.windows.net",
-                "productionresultssa5.blob.core.windows.net",
-                "productionresultssa6.blob.core.windows.net",
-                "productionresultssa7.blob.core.windows.net",
-                "productionresultssa8.blob.core.windows.net",
-                "productionresultssa9.blob.core.windows.net",
-                "productionresultssa10.blob.core.windows.net",
-                "productionresultssa11.blob.core.windows.net",
-                "productionresultssa12.blob.core.windows.net",
-                "productionresultssa13.blob.core.windows.net",
-                "productionresultssa14.blob.core.windows.net",
-                "productionresultssa15.blob.core.windows.net",
-                "productionresultssa16.blob.core.windows.net",
-                "productionresultssa17.blob.core.windows.net",
-                "productionresultssa18.blob.core.windows.net",
-                "productionresultssa19.blob.core.windows.net"}) {
+                "productionresultssa19.blob.core.windows.net",
+                "productionresultssa30.blob.core.windows.net",
+                "productionresultssa49.blob.core.windows.net",
+                "productionresultssa100.blob.core.windows.net",
+                "productionresultssa199.blob.core.windows.net",
+                "productionresultssa200.blob.core.windows.net"}) {
             String resource = "https://" + host + "/owner/repo/resource";
             sub(cases, host + " resource", resource, true, null);
             frame(cases, host + " embedded document", resource, true, null);
@@ -128,6 +115,24 @@ public final class PolicyCases {
                 "example.blob.core.windows.net", "appleid.apple.com", "company.okta.com"}) {
             both(cases, "unapproved destination " + host, "https://" + host + "/", false, BlockReason.HOST_NOT_ALLOWED);
         }
+        // GitHub Actions results storage pattern: the complete hostname must be
+        // productionresultssa + digits + .blob.core.windows.net. Look-alikes are refused.
+        for (String host : new String[]{
+                "productionresultssa30.blob.core.windows.net.evil.example",
+                "evilproductionresultssa30.blob.core.windows.net",
+                "productionresultssaX.blob.core.windows.net",
+                "productionresultssa.blob.core.windows.net",
+                "productionresultssa30.blob.core.windows.net.",
+                "unrelated.blob.core.windows.net"}) {
+            // The trailing-dot host is refused as INVALID_HOST by canonicalisation, the rest as
+            // HOST_NOT_ALLOWED because the anchored pattern does not match the complete hostname.
+            BlockReason reason = host.endsWith(".")
+                    ? BlockReason.INVALID_HOST : BlockReason.HOST_NOT_ALLOWED;
+            both(cases, "results storage look-alike " + host, "https://" + host + "/x", false, reason);
+        }
+        sub(cases, "results storage host upper case", "https://PRODUCTIONRESULTSSA30.BLOB.CORE.WINDOWS.NET/x", true, null);
+        frame(cases, "results storage host upper case frame", "https://PRODUCTIONRESULTSSA30.BLOB.CORE.WINDOWS.NET/x", true, null);
+        doc(cases, "results storage host upper case never a page", "https://PRODUCTIONRESULTSSA30.BLOB.CORE.WINDOWS.NET/x", false, BlockReason.DOCUMENT_NOT_ALLOWED);
         both(cases, "non-ASCII characters in the path only", "https://github.com/caf\u00e9", true, null);
         both(cases, "percent-encoded path", "https://github.com/chat/%E6%97%A5%E6%9C%AC", true, null);
         both(cases, "dot-segments in the path cannot change the host", "https://github.com/../evil.example",

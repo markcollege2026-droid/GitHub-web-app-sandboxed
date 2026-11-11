@@ -51,6 +51,16 @@ public abstract class BaseGuardHost implements GuardHost {
     }
 
     @Override
+    public void onVerifiedNavigation(String url) {
+        // Informational only: a test double that does not track navigation state.
+    }
+
+    @Override
+    public boolean isDownloadInProgress() {
+        return false;
+    }
+
+    @Override
     public void onSslErrorBlocked(String url) {
         Log.i(TAG, "TLS error refused");
     }

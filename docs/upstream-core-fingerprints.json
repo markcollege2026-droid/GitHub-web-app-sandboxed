@@ -52,9 +52,8 @@
       "upstreamFileSha256": "32a625997c40054079b95a4d4533656d0edaecbe52d62e90570a18f08fbd2921",
       "adaptedCodeSha256": "f54811715ebe52aafae1b026872bc7a05fd2aa2ea8e10ebc67adffed2f8e350f",
       "reviewedException": {
-        "summary": "Downloads are saved by the app (progress dialog, saved/failed/cancelled/refused reporting), a refused destination is reported as a refusal with its host and reason, and a click that lands on a file-only host offers to save it instead of doing nothing.",
-        "rationale": "Three user reports in one change: Help/Docs links surfaced as 'github.com could not be reached', downloads did nothing, and 'Download raw file' produced no outcome because the file is served inline by an asset host. The refusal wording is now accurate, the activity owns the one FileDownloads instance whose callbacks drive the native surfaces, and an inline file link asks whether to save. No allow-list entry, verdict, permission or loadUrl path changes.",
-        "adaptedCodeSha256": "e163550dc2ab4737cb4b72158c99756eb5dfca39a6ed9bd65b533d723ecee74d",
+        "summary": "Tracks the last verified GitHub page and download lifecycle; watchdog/recovery preserve workflow context during resource-only artifact redirects and return to the last verified page for unauthorized navigation.",
+        "rationale": "Fixes the reported Actions artifact download homepage reset at its navigation-state root. A resource-only host reached during an active download is not a page navigation; the watchdog suppresses recovery for that case and records no artifact host as a page. Actual unauthorized top-level navigation remains blocked and recovers to the last verified approved page. Download completion/failure/cancellation/refusal balances state. Signed URLs are not logged by recovery diagnostics. The allowlist remains narrow and resource-only; EgressGuard, per-hop validation, redirect and size protections are unchanged.",
         "requiredTokens": [
           "verdict",
           "FileDownloads",
@@ -63,11 +62,25 @@
           "\"Download refused: nothing was saved\"",
           "\"Download cancelled: nothing was saved\"",
           "offerToSaveInstead",
-          "\"Save this file?\""
+          "\"Save this file?\"",
+          "NavigationStateTracker",
+          "DOWNLOAD_IN_PROGRESS",
+          "recoveryUrl",
+          "(",
+          ")",
+          "onDownloadStarted",
+          "onDownloadFinished",
+          "shouldSuppressRecovery",
+          "offendingUrl",
+          "destinationHost",
+          ",",
+          "null"
         ],
         "forbiddenTokens": [
-          "\"Downloads are disabled in this app\""
-        ]
+          "\"Downloads are disabled in this app\"",
+          "\"loadVerifiedDestination(policy.primaryUrl(), \\\"watchdog\\\")\""
+        ],
+        "adaptedCodeSha256": "dc1d77fc42083927123703cb04b99c735502c89bfd77a51256b17deab1b02041"
       }
     },
     "app/src/main/java/app/githubwebview/locked/net/EgressProxy.java": {
@@ -93,7 +106,32 @@
     "app/src/main/java/app/githubwebview/locked/policy/PolicyConfig.java": {
       "upstreamPath": "app/src/main/java/app/arenawebview/locked/policy/PolicyConfig.java",
       "upstreamFileSha256": "140f8ad36c7b91a582305065d0de04a64e1fd2b3b4aec0837acaef6e6b58d23d",
-      "adaptedCodeSha256": "d776e48ce8ed6d963bea8048add2f5c19553fdd504582f122e71dab306dd5e62"
+      "adaptedCodeSha256": "d776e48ce8ed6d963bea8048add2f5c19553fdd504582f122e71dab306dd5e62",
+      "reviewedException": {
+        "summary": "Adds exact-first lookup with one immutable resource-only host-pattern list for narrow endpoint families.",
+        "rationale": "A narrow complete-host pattern is required for Actions results endpoints that vary numerically. Exact entries retain priority; patterns are constrained to resource-only roles and only synthesize a matched exact entry after anchored matching. URL/document policy decisions continue through the existing UrlPolicy and EgressGuard path.",
+        "requiredTokens": [
+          "List",
+          "<",
+          "HostPatternEntry",
+          ">",
+          "hostPatterns",
+          "pattern",
+          ".",
+          "isResourceOnly",
+          "(",
+          ")",
+          "matchesHost",
+          "canonicalHost",
+          "toEntry",
+          "public",
+          "boolean",
+          "isAllowedHost",
+          "String"
+        ],
+        "forbiddenTokens": [],
+        "adaptedCodeSha256": "b61514acd9bf34b30a3e63e0ba4c84ad7a8b4d17135e2424c79ac79d2c0b3ae7"
+      }
     },
     "app/src/main/java/app/githubwebview/locked/policy/PolicyMetrics.java": {
       "upstreamPath": "app/src/main/java/app/arenawebview/locked/policy/PolicyMetrics.java",
@@ -133,12 +171,44 @@
     "app/src/main/java/app/githubwebview/locked/web/GitHubWebViewClient.java": {
       "upstreamPath": "app/src/main/java/app/arenawebview/locked/web/ArenaWebViewClient.java",
       "upstreamFileSha256": "f58b8afbeda37328611a6a9d8945d010378e0398c00601558ca01f202f2886cc",
-      "adaptedCodeSha256": "645f5f2f6f641dc5c0903f79357b29c992800ee798453b53f5f3f20c434018c6"
+      "adaptedCodeSha256": "645f5f2f6f641dc5c0903f79357b29c992800ee798453b53f5f3f20c434018c6",
+      "reviewedException": {
+        "summary": "Records verified primary-page navigations and avoids treating active resource-host download redirects as page recovery events.",
+        "rationale": "The visible WebView may transiently expose an artifact storage URL during download handling. Verified main-frame page tracking and resource-only download suppression preserve the current workflow page without loosening the document policy; unauthorized navigation still triggers the existing recovery path.",
+        "requiredTokens": [
+          "host",
+          ".",
+          "onVerifiedNavigation",
+          "(",
+          "url",
+          ")",
+          "isDownloadResourceUrl",
+          "isDownloadInProgress"
+        ],
+        "forbiddenTokens": [],
+        "adaptedCodeSha256": "1c0ce601a7c95dd4673b62bfb69589b85d2f6e47bb2398b1a4ae45060561285f"
+      }
     },
     "app/src/main/java/app/githubwebview/locked/web/BaseGuardHost.java": {
       "upstreamPath": "app/src/main/java/app/arenawebview/locked/web/BaseGuardHost.java",
       "upstreamFileSha256": "0e05ce0a9b01b0d4d7bfe44fbe849480cb97d7e7a8659938539b7e2211d4abda",
-      "adaptedCodeSha256": "73cae7f9945e6ed9efd38ac5832d72e3cda12925f83a0d247aab8a4ae348e849"
+      "adaptedCodeSha256": "73cae7f9945e6ed9efd38ac5832d72e3cda12925f83a0d247aab8a4ae348e849",
+      "reviewedException": {
+        "summary": "Provides backward-compatible defaults for verified-navigation and download-state guard callbacks.",
+        "rationale": "The navigation tracker is integrated through GuardHost, while test and non-activity guard hosts keep safe no-op/false defaults. No network or navigation permissions are introduced.",
+        "requiredTokens": [
+          "void",
+          "onVerifiedNavigation",
+          "(",
+          "String",
+          "url",
+          ")",
+          "boolean",
+          "isDownloadInProgress"
+        ],
+        "forbiddenTokens": [],
+        "adaptedCodeSha256": "a7b0aa9c27c0f143f2aaa91f73dbd5a7f2b7cb37eefe2263f1c6df0e53e08889"
+      }
     },
     "app/src/main/java/app/githubwebview/locked/web/BlockedResponses.java": {
       "upstreamPath": "app/src/main/java/app/arenawebview/locked/web/BlockedResponses.java",
@@ -153,7 +223,23 @@
     "app/src/main/java/app/githubwebview/locked/web/GuardHost.java": {
       "upstreamPath": "app/src/main/java/app/arenawebview/locked/web/GuardHost.java",
       "upstreamFileSha256": "59961f3f5fc0eced104baf4d231112e1e6e29f65257f297f404cd6b7401ed86d",
-      "adaptedCodeSha256": "01b257fe8663bc6d27681e387272671ac8a4e289e1a71ed333a3d8b575dbc330"
+      "adaptedCodeSha256": "01b257fe8663bc6d27681e387272671ac8a4e289e1a71ed333a3d8b575dbc330",
+      "reviewedException": {
+        "summary": "Exposes verified-navigation and active-download state to the WebView guard.",
+        "rationale": "Required for the WebView client to distinguish a resource-only download redirect from an unauthorized page navigation. The interface adds state observation only; policy enforcement remains in UrlPolicy and EgressGuard.",
+        "requiredTokens": [
+          "void",
+          "onVerifiedNavigation",
+          "(",
+          "String",
+          "url",
+          ")",
+          "boolean",
+          "isDownloadInProgress"
+        ],
+        "forbiddenTokens": [],
+        "adaptedCodeSha256": "c7a511ebe0dd10d194b3bdf2f2edfb8161cf63f17e55842e399dc88762aaa23f"
+      }
     },
     "app/src/main/java/app/githubwebview/locked/web/PopupRouterClient.java": {
       "upstreamPath": "app/src/main/java/app/arenawebview/locked/web/PopupRouterClient.java",
@@ -165,16 +251,25 @@
       "upstreamFileSha256": "b9c73a70a640c10ef6e38cade5df855f62ad9dac0e28682d99d511062c13c2b0",
       "adaptedCodeSha256": "3517bbd4abfcc00e847cf61fdcd11de15fc347f78480d1fcfa061a3c1b6947d3",
       "reviewedException": {
-        "summary": "The download listener forwards to the app's downloader instead of refusing outright.",
-        "rationale": "The user asked for downloads to work. The listener still never hands a URL to the platform download manager, a browser or another app: it forwards to FileDownloads, which enforces the same policy and the same loopback egress guard. Every other hardening switch is unchanged.",
-        "adaptedCodeSha256": "a258ddd7ae821af6e31e8054658f5585ac418617d1e199466353076029d53aa5",
+        "summary": "Passes the navigation tracker to the guarded download listener so download state is recorded synchronously.",
+        "rationale": "The watchdog must know about a user-initiated download before it can observe a transient resource-host URL. The listener still delegates solely to FileDownloads; EgressGuard routing, redirect checks and size protections are unchanged. No platform download manager or external intent is used.",
         "requiredTokens": [
           "GuardedDownloadListener",
-          "FileDownloads"
+          "FileDownloads",
+          "NavigationStateTracker",
+          "tracker",
+          ".",
+          "onDownloadStarted",
+          "(",
+          ")",
+          "new",
+          "downloads",
+          ","
         ],
         "forbiddenTokens": [
           "BlockingDownloadListener"
-        ]
+        ],
+        "adaptedCodeSha256": "779c9d763bca33a87823ff67a1f5e383a00e09f3f810d9a7f21fedd6e4eac37b"
       }
     }
   },
@@ -186,6 +281,14 @@
     "app/src/main/java/app/githubwebview/locked/net/FileDownloads.java": {
       "purpose": "Fetches a download through the loopback egress guard (no direct connection), re-validates every redirect hop, and saves through MediaStore (Android 10+) or the app's own folder (7-9). No storage permission, no platform download manager, no other app.",
       "codeSha256": "074c7a3ffddd2a46ab0e8a2d8ca4ffd25bd9cabf2b425377b56353b7b2222358"
+    },
+    "app/src/main/java/app/githubwebview/locked/policy/HostPatternEntry.java": {
+      "purpose": "Anchored, case-insensitive, resource-only host pattern with complete-host matching and synthesized exact asset entries; used only for GitHub Actions results storage endpoints.",
+      "codeSha256": "f72d243971f860f166b2161ced3f04099980170a5a52f4fe88bc26d82f6b7965"
+    },
+    "app/src/main/java/app/githubwebview/locked/policy/NavigationStateTracker.java": {
+      "purpose": "Pure-Java tracker for last verified page and active download count; separates resource-only download redirects from unauthorized navigation and provides safe recovery targets.",
+      "codeSha256": "a2e251187b1585bf426928d3b7b25d6926bbdf92c6c92184c6e3fa792768503f"
     }
   }
 }

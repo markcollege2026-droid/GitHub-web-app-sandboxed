@@ -53,6 +53,17 @@ public interface GuardHost {
      */
     void onPageFinished(String url);
 
+    /**
+     * A main-frame navigation of the primary WebView was verified as an approved page (page finished,
+     * or a same-document history update such as {@code pushState}). The host records it as the last
+     * verified page, so a later unauthorized navigation returns there instead of to the start page.
+     * A resource-only host is never reported here.
+     */
+    void onVerifiedNavigation(String url);
+
+    /** True while a download requested by the user is being fetched by the app itself. */
+    boolean isDownloadInProgress();
+
     /** A TLS error was refused (the app never proceeds through a certificate error). */
     void onSslErrorBlocked(String url);
 
