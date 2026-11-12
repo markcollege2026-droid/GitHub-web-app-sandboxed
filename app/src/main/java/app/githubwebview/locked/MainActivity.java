@@ -2,10 +2,14 @@ package app.githubwebview.locked;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.BroadcastReceiver;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.pm.PackageManager;
+import android.app.NotificationManager;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
@@ -38,6 +42,8 @@ import android.widget.Toast;
 
 import java.util.Locale;
 
+import app.githubwebview.locked.net.BackgroundDownloadService;
+import app.githubwebview.locked.net.DownloadStateStore;
 import app.githubwebview.locked.net.FileDownloads;
 import app.githubwebview.locked.policy.GitHubAllowlist;
 import app.githubwebview.locked.policy.BackNavigator;
@@ -142,10 +148,25 @@ public class MainActivity extends Activity implements GuardHost, FileDownloads.L
     private boolean resumed;
 
     /** The one downloader. Guarded by the same policy and the same loopback proxy as the WebView. */
+    /** Activity-facing facade; it delegates accepted work to BackgroundDownloadService and owns no worker. */
     private FileDownloads downloads;
     private AlertDialog downloadDialog;
     private ProgressBar downloadProgressBar;
     private TextView downloadProgressText;
+    private BroadcastReceiver downloadStateReceiver;
+    private boolean downloadReceiverRegistered;
+    private boolean pendingNotificationPermission;
+    private PendingDownload pendingDownload;
+    private long lastRenderedDownloadUpdate;
+    private static final int REQUEST_POST_NOTIFICATIONS = 7431;
+
+    private static final class PendingDownload {
+        final String url, disposition, mime;
+        final long length;
+        PendingDownload(String url, String disposition, String mime, long length) {
+            this.url = url; this.disposition = disposition; this.mime = mime; this.length = length;
+        }
+    }
 
     private long lastExitBackPressMs;
     private long lastMessageMs;
@@ -165,7 +186,16 @@ public class MainActivity extends Activity implements GuardHost, FileDownloads.L
         recordIncomingIntent(getIntent());
 
         handler = new Handler(Looper.getMainLooper());
-        downloads = new FileDownloads(this, policy, metrics, handler, this);
+        DownloadStateStore.recoverInterrupted(getApplicationContext());
+        downloads = new FileDownloads(this, policy, metrics, handler, this,
+                new FileDownloads.BackgroundStarter() {
+                    @Override public boolean start(String url, String disposition, String mime, long length) {
+                        return startBackgroundDownload(url, disposition, mime, length);
+                    }
+                    @Override public void cancel() {
+                        BackgroundDownloadService.cancel(MainActivity.this);
+                    }
+                });
 
         root = new FrameLayout(this);
         root.setBackgroundColor(Color.BLACK);
@@ -430,6 +460,109 @@ public class MainActivity extends Activity implements GuardHost, FileDownloads.L
         super.onNewIntent(intent);
         // Deliberately not calling setIntent(): incoming intents can never influence navigation.
         recordIncomingIntent(intent);
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        if (downloadStateReceiver == null) {
+            downloadStateReceiver = new BroadcastReceiver() {
+                @Override public void onReceive(Context context, Intent intent) {
+                    applyDownloadSnapshot(DownloadStateStore.read(MainActivity.this));
+                }
+            };
+        }
+        IntentFilter filter = new IntentFilter(DownloadStateStore.ACTION_CHANGED);
+        if (Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(downloadStateReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(downloadStateReceiver, filter);
+        }
+        downloadReceiverRegistered = true;
+        DownloadStateStore.recoverInterrupted(getApplicationContext());
+        applyDownloadSnapshot(DownloadStateStore.read(this));
+    }
+
+    @Override
+    protected void onStop() {
+        if (downloadReceiverRegistered && downloadStateReceiver != null) {
+            unregisterReceiver(downloadStateReceiver);
+            downloadReceiverRegistered = false;
+        }
+        dismissDownloadDialog();
+        super.onStop();
+    }
+
+    private void applyDownloadSnapshot(DownloadStateStore.Snapshot snapshot) {
+        if (snapshot.state == DownloadStateStore.State.ACTIVE) {
+            if (navigationTracker.activeDownloadCount() == 0) navigationTracker.onDownloadStarted();
+            if (downloadDialog == null) onDownloadStarted(snapshot.fileName, snapshot.totalBytes);
+            onDownloadProgress(snapshot.fileName, snapshot.bytesRead, snapshot.totalBytes);
+            return;
+        }
+        finishTrackedDownload();
+        if (snapshot.updatedAt <= lastRenderedDownloadUpdate) return;
+        lastRenderedDownloadUpdate = snapshot.updatedAt;
+        switch (snapshot.state) {
+            case COMPLETE:
+                onDownloadSaved(snapshot.fileName, snapshot.location);
+                break;
+            case CANCELLED:
+                onDownloadCancelled(snapshot.fileName);
+                break;
+            case REFUSED:
+                onDownloadRefused(null, snapshot.host, snapshot.message);
+                break;
+            case FAILED:
+            case INTERRUPTED:
+                showRetryableDownloadFailure(snapshot);
+                break;
+            default:
+                break;
+        }
+    }
+
+    private void finishTrackedDownload() {
+        // A local refusal or a rejected duplicate must not finish another service-owned download.
+        if (DownloadStateStore.read(this).state != DownloadStateStore.State.ACTIVE
+                && navigationTracker.activeDownloadCount() > 0) {
+            navigationTracker.onDownloadFinished();
+        }
+    }
+
+    private void showRetryableDownloadFailure(DownloadStateStore.Snapshot snapshot) {
+        dismissDownloadDialog();
+        if (!canShowDialogs()) {
+            onMessage(snapshot.message);
+            return;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle(snapshot.state == DownloadStateStore.State.INTERRUPTED
+                        ? "Download interrupted" : "Download failed")
+                .setMessage(snapshot.message + "\n\nThe saved link will be revalidated before retrying.")
+                .setPositiveButton("Retry", (dialog, which) -> retryLastDownload())
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private void retryLastDownload() {
+        DownloadStateStore.RetryRequest request = DownloadStateStore.retryRequest(this);
+        if (request == null) {
+            onMessage("No retryable download is available. Open the GitHub link again.");
+            return;
+        }
+        boolean notificationPermission = Build.VERSION.SDK_INT < 33
+                || checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                        == PackageManager.PERMISSION_GRANTED;
+        NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        if (notificationPermission && manager != null && manager.areNotificationsEnabled()) {
+            // The service reruns DownloadPlan and reinstalls EgressGuard if this is a fresh process.
+            BackgroundDownloadService.retry(this);
+        } else {
+            // Route through the normal permission gate; only after notification permission is granted
+            // will this enqueue the user-requested, policy-revalidated transfer.
+            startBackgroundDownload(request.url, request.disposition, request.mimeType, request.contentLength);
+        }
     }
 
     @Override
@@ -721,6 +854,53 @@ public class MainActivity extends Activity implements GuardHost, FileDownloads.L
         view.loadUrl(url);
     }
 
+    /** Start a user-requested transfer only when the foreground notification can be shown. */
+    private boolean startBackgroundDownload(String url, String disposition, String mime, long length) {
+        if (DownloadStateStore.read(this).state == DownloadStateStore.State.ACTIVE) {
+            onMessage("A download is already running. Cancel it before starting another.");
+            return false;
+        }
+        if (Build.VERSION.SDK_INT >= 33
+                && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            pendingDownload = new PendingDownload(url, disposition, mime, length);
+            pendingNotificationPermission = true;
+            requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS},
+                    REQUEST_POST_NOTIFICATIONS);
+            return true; // queued behind the system permission prompt; no bytes are fetched yet
+        }
+        NotificationManager manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        if (manager == null || !manager.areNotificationsEnabled()) {
+            onMessage("Background download not started: enable notifications so its progress and Cancel control are visible.");
+            return false;
+        }
+        boolean started = BackgroundDownloadService.start(this, url, disposition, mime, length);
+        if (!started) onMessage("Background download service could not start; nothing was downloaded.");
+        return started;
+    }
+
+    @Override
+    @SuppressWarnings("deprecation")
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode != REQUEST_POST_NOTIFICATIONS || !pendingNotificationPermission) return;
+        pendingNotificationPermission = false;
+        PendingDownload request = pendingDownload;
+        pendingDownload = null;
+        if (request == null) return;
+        if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            if (!startBackgroundDownload(request.url, request.disposition, request.mime, request.length)) {
+                onDownloadFailed(DownloadPlanName(request.url), "Background notification could not be shown; nothing was downloaded.");
+            }
+        } else {
+            onDownloadFailed(DownloadPlanName(request.url),
+                    "Notification permission was denied. Background download was not started.");
+        }
+    }
+
+    private String DownloadPlanName(String url) {
+        return app.githubwebview.locked.net.DownloadPlan.plan(url, null, null, policy).fileName();
+    }
+
     @Override
     public void onPageFinished(String url) {
         hideRefreshSpinner();
@@ -736,7 +916,8 @@ public class MainActivity extends Activity implements GuardHost, FileDownloads.L
 
     @Override
     public boolean isDownloadInProgress() {
-        return navigationTracker.isDownloadInProgress();
+        return navigationTracker.isDownloadInProgress()
+                || DownloadStateStore.read(this).state == DownloadStateStore.State.ACTIVE;
     }
 
     @Override
@@ -765,9 +946,8 @@ public class MainActivity extends Activity implements GuardHost, FileDownloads.L
                 .setMessage(host + " serves files for github.com pages, so this app cannot open it as a page.\n\n"
                         + "Save it to Downloads instead?")
                 .setPositiveButton("Save", (dialog, which) -> {
-                    if (downloads != null) {
+                    if (downloads != null && downloads.download(url, null, null, -1L)) {
                         navigationTracker.onDownloadStarted();
-                        downloads.download(url, null, null, -1L);
                     }
                 })
                 .setNegativeButton(android.R.string.cancel, (dialog, which) -> onMessage("Nothing was saved"))
@@ -1024,13 +1204,18 @@ public class MainActivity extends Activity implements GuardHost, FileDownloads.L
 
     @Override
     public void onDownloadRefused(String url, String host, String reason) {
-        navigationTracker.onDownloadFinished();
+        finishTrackedDownload();
         // Same surface as every other refusal: it names the host, the policy reason, and keeps the
         // diagnostics one tap away. A refused download never navigates the WebView, so the page
         // the user was viewing stays on screen.
         // Keep the useful host/reason diagnostics, but do not surface or retain a signed URL.
         overlay.showBlocked(host, reason, "");
         onMessage("Download refused: " + (reason == null || reason.isEmpty() ? "not allowed" : reason));
+    }
+
+    /** The in-app Cancel control, also used by lifecycle tests, always signals the service. */
+    public void cancelBackgroundDownload() {
+        if (downloads != null) downloads.cancel();
     }
 
     @Override
@@ -1056,8 +1241,8 @@ public class MainActivity extends Activity implements GuardHost, FileDownloads.L
                 .setTitle("Downloading")
                 .setView(content)
                 .setCancelable(true)
-                .setNegativeButton("Cancel", (dialog, which) -> downloads.cancel())
-                .setOnCancelListener(dialog -> downloads.cancel())
+                .setNegativeButton("Cancel", (dialog, which) -> cancelBackgroundDownload())
+                .setOnCancelListener(dialog -> cancelBackgroundDownload())
                 .create();
         downloadDialog.show();
         showDownloadProgress(fileName, 0L, totalBytes);
@@ -1073,7 +1258,7 @@ public class MainActivity extends Activity implements GuardHost, FileDownloads.L
 
     @Override
     public void onDownloadSaved(String fileName, String location) {
-        navigationTracker.onDownloadFinished();
+        finishTrackedDownload();
         dismissDownloadDialog();
         Log.i(TAG, "download saved: " + fileName + " in " + location);
         onMessage("Saved " + fileName + " to " + location);
@@ -1081,7 +1266,7 @@ public class MainActivity extends Activity implements GuardHost, FileDownloads.L
 
     @Override
     public void onDownloadFailed(String fileName, String reason) {
-        navigationTracker.onDownloadFinished();
+        finishTrackedDownload();
         dismissDownloadDialog();
         Log.w(TAG, "download failed: " + fileName + " (" + reason + ")");
         if (!canShowDialogs()) {
@@ -1096,7 +1281,7 @@ public class MainActivity extends Activity implements GuardHost, FileDownloads.L
 
     @Override
     public void onDownloadCancelled(String fileName) {
-        navigationTracker.onDownloadFinished();
+        finishTrackedDownload();
         dismissDownloadDialog();
         onMessage("Download cancelled: nothing was saved");
     }
