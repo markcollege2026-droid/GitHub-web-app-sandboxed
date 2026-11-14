@@ -98,8 +98,12 @@ and no failing assertion was removed. A physical-device/IME/font/rotation matrix
 ## Full reports
 
 * [Exact files changed](docs/CHANGES.md)
-* [All 66 hosts, roles and the delta from Arena](docs/DOMAINS.md) — 2 PRODUCT, 1 SIGN_IN, 63 ASSET;
-  no wildcards, and a resource host is not a navigation destination.
+* [All hosts, roles and the delta from Arena](docs/DOMAINS.md) — 46 exact hosts (2 PRODUCT, 1 SIGN_IN,
+  43 ASSET) plus one anchored pattern for the numbered Actions storage accounts; no wildcards, and a
+  resource host is not a navigation destination. (At first delivery the storage accounts were 20
+  separate entries, 66 hosts in all.)
+* [Latest check of the live site against that list](docs/SITE-DRIFT.md) and the
+  [2026-11-14 re-check and build](docs/SITE-RECHECK-2026-11-14.md).
 * [Source provenance and preservation checks](docs/PROVENANCE.md)
 * [Detailed results, failures found and manual checks](TEST_REPORT.md)
 * [Verbatim CI evidence and artifact links](docs/EVIDENCE.md)

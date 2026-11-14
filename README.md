@@ -65,6 +65,13 @@ includes a live save: `FileDownloadTest` downloads a real file through the loopb
 `MediaStore` row and its size, then deletes it. Help and download refusals are still covered by
 `refusalsAreReportedAsRefusalsNotAsOutages`.
 
+[Run 43634780295](https://github.com/markcollege2026-droid/GitHub-web-app-sandboxed/actions/runs/43634780295)
+is the most recent build (2026-11-14, source `7338b0a`): **4,009 JVM cases (0 failed)**, emulator suite
+**65 passed, 0 failed, 2 skipped**, and the exact signed release APK installed and launched. Release
+SHA-256 `784b0657133aacef419c14f30b9ddea918ce4f46aa284aa410b0fd7107974019`. It was built after
+re-checking the live site; the allow-list did not need to change. See
+[docs/SITE-RECHECK-2026-11-14.md](docs/SITE-RECHECK-2026-11-14.md).
+
 See [TEST_REPORT.md](TEST_REPORT.md) for scope/earlier failures and [docs/EVIDENCE.md](docs/EVIDENCE.md)
 for actual results. The original Arena reports are archived under `docs/upstream-arena/`, not reused
 as evidence for this APK. [Exact changed files](docs/CHANGES.md) · [All domains/roles](docs/DOMAINS.md)
@@ -82,6 +89,24 @@ usually different signing keys: uninstall one before installing the other. Neith
 
 Android 7+ (minSdk 24), compile/target SDK 35, JDK 17. A WebView supporting AndroidX
 `PROXY_OVERRIDE` is required; otherwise the original error screen fails closed.
+
+## Is the host list still current?
+
+GitHub changes its site without notice. The **Site drift** workflow
+(`.github/workflows/site-drift.yml`) looks at the live, signed-out site and compares it with the
+allow-list the APK is built from:
+
+* it runs every Monday (from `main`, so only once this workflow is merged), whenever the allow-list
+  changes on a working branch, and on demand (Actions → *Site drift* → *Run workflow*);
+* it **fails** when github.com names or requests a host that is neither allowed nor a recorded refusal
+  in [docs/site-reviewed-exclusions.json](docs/site-reviewed-exclusions.json), so a new host is never
+  silently adopted and never silently ignored;
+* it never edits the allow-list. Allowing a host stays a reviewed change to `GitHubAllowlist.java`,
+  its pinning test and [docs/DOMAINS.md](docs/DOMAINS.md);
+* run by hand with *refresh* ticked on a branch, it commits the new snapshot and report itself.
+
+The latest result is [docs/SITE-DRIFT.md](docs/SITE-DRIFT.md). It is a signed-out observation: hosts
+used only when signed in, or only by a running job, cannot show up in it.
 
 ## Automatic AppLock enrollment exemption
 

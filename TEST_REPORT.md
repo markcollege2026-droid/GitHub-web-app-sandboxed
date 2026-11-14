@@ -138,3 +138,14 @@ This editing sandbox cannot reach Android/Gradle artifact servers. Local checks 
 JavaScript/shell syntax, Git diffs, the complete upstream import comparison and preserved-core
 fingerprints. Compilation, JVM tests, APK signature/badging, installation and emulator tests actually
 ran in GitHub Actions. No historical Arena pass count is reused as GitHub verification.
+
+## 2026-11-14 re-check of the live site
+
+Later than the report above, which describes the first delivery. The live site was compared with the
+allow-list in GitHub Actions; no host needed to be added or removed.
+[Android CI run 43634780295](https://github.com/markcollege2026-droid/GitHub-web-app-sandboxed/actions/runs/43634780295)
+on `7338b0a54c16c977eefe034026a1c232b4011923` passed every job: **4,009 JVM cases passed, 0 failed**;
+**67 Android cases reported, 65 passed, 0 failed, 2 skipped** (the unavailable Google handoff and the
+fail-closed download case); the exact signed release APK installed and launched. Details, including
+the unexplained intermittent "tap must focus the real input" failure seen earlier on `main`, are in
+[docs/SITE-RECHECK-2026-11-14.md](docs/SITE-RECHECK-2026-11-14.md).

@@ -5,7 +5,8 @@ or an independent third-party security audit. See:
 
 * `docs/PROVENANCE.md` — pinned source/build lineage and the 20-file executable-token preservation check.
 * `docs/CHANGES.md` — complete old/new file inventory, including files retained byte-for-byte.
-* `docs/DOMAINS.md` — all 66 exact hosts, roles, path scopes, observations and the delta from Arena.
+* `docs/DOMAINS.md` — every exact host and the one host pattern, with roles, path scopes, observations
+  and the delta from Arena. `docs/SITE-DRIFT.md` is the latest check of the live site against it.
 * `TEST_REPORT.md` and `docs/EVIDENCE.md` — actual CI outcomes, including earlier failures and the one
   unavailable Google handoff, not unqualified claims that authentication or every workflow works.
 * `DELIVERY.md` — the exact tested signed APK artifact and its checksum.
