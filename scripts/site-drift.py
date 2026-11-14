@@ -342,7 +342,7 @@ def main():
     known_urls = {record["url"] for record in fetched}
     for name, item in sorted(browser_csps.items()):   # pages only the browser visited (e.g. a job page)
         if item["url"] not in known_urls:
-            fetched.append({"name": "browser:" + name, "url": item["url"], "status": 200,
+            fetched.append({"name": name + " (browser)", "url": item["url"], "status": 200,
                             "csp": item["csp"], "observed": now(), "via": "browser"})
     with_csp = [record for record in fetched if record.get("csp")]
     if not with_csp:
@@ -547,10 +547,16 @@ def main():
     for record in fetched:
         out("| %s | %s | %s | %s |" % (record["name"], record["url"], record.get("status"),
                                       "yes" if record.get("csp") else "none " + record.get("error", "")))
-    for page in browser_pages:
-        out("| browser: %s | %s | %s | %d requests%s |" % (
-            page["name"], page["url"], page["status"], page["requests"],
-            " (" + page["error"] + ")" if page["error"] else ""))
+    if browser_pages:
+        out("")
+        out("Loaded in the signed-out desktop browser, recording every request the page made:")
+        out("")
+        out("| Page | URL | HTTP | Requests recorded |")
+        out("|---|---|---|---|")
+        for page in browser_pages:
+            out("| %s | %s | %s | %d%s |" % (
+                page["name"], page["url"], page["status"], page["requests"],
+                " (" + page["error"] + ")" if page["error"] else ""))
     out("")
     out("## Method and limits")
     out("")
