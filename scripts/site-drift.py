@@ -609,7 +609,8 @@ def main():
                  "%s is %s. Add it to the allow-list or record the refusal in "
                  "docs/site-reviewed-exclusions.json." % (host, where))
     if out_of_scope:
-        annotate("warning", "Site drift: requests outside allowed paths",
+        # A notice, not a warning: this is the desktop browser, and the app refusing these is by design.
+        annotate("notice", "Site drift: desktop browser requests outside allowed paths",
                  "\n".join("%s%s (page: %s)" % (host, path[:80], pages)
                            for host, path, pages in out_of_scope[:25]))
     for problem in doc_problems[:8]:

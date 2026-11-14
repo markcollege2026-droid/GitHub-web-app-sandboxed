@@ -90,8 +90,9 @@ public class DomainsDocTest {
         return scope.toString();
     }
 
-    private static File domainsDoc() {
-        File file = new File(TestPaths.moduleDir().getParentFile(), "docs/DOMAINS.md");
+    private static File domainsDoc() throws Exception {
+        // moduleDir() may be ".../app/." - resolve it before stepping up to the repository root.
+        File file = new File(TestPaths.moduleDir().getCanonicalFile().getParentFile(), "docs/DOMAINS.md");
         if (!file.isFile()) {
             throw new IllegalStateException("Missing " + file);
         }
