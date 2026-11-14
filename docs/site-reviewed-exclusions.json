@@ -1,0 +1,122 @@
+{
+  "comment": [
+    "Hosts that github.com names in its Content-Security-Policy, or that a signed-out browser requests,",
+    "and that this app deliberately does NOT allow. scripts/site-drift.py reads this file: a host that is",
+    "neither on the app allow-list (GitHubAllowlist.java) nor listed here is reported as UNREVIEWED and",
+    "fails the 'Site drift' workflow, so a new host can never be silently ignored or silently adopted.",
+    "'host' is compared with the exact CSP source host (wildcards are written literally, e.g. '*.example.com').",
+    "'regex' must match the complete host. Adding an entry here records a refusal; it never widens the app."
+  ],
+  "exclusions": [
+    {
+      "host": "collector.github.com",
+      "category": "telemetry",
+      "reason": "GitHub analytics beacon. Refused on purpose; pages work without it (see docs/DOMAINS.md)."
+    },
+    {
+      "host": "browser.events.data.microsoft.com",
+      "category": "telemetry",
+      "reason": "Microsoft telemetry endpoint. Not needed to render or use github.com."
+    },
+    {
+      "regex": "(edge|rs)\\.fullstory\\.com",
+      "category": "telemetry",
+      "reason": "FullStory session analytics named by the marketing homepage CSP. Not needed to use the site."
+    },
+    {
+      "host": "insights.github.com",
+      "category": "telemetry",
+      "reason": "GitHub insights/analytics endpoint. Not needed to render or use github.com."
+    },
+    {
+      "host": "www.githubstatus.com",
+      "category": "separate site",
+      "reason": "Status site. A separate website; the app shows the native 'Blocked by this app' panel for it."
+    },
+    {
+      "host": "gist.github.com",
+      "category": "separate site",
+      "reason": "Gist is a separate site and is intentionally not made browsable or embeddable."
+    },
+    {
+      "regex": "(api|api\\.individual|api\\.business|api\\.enterprise|proxy\\.individual|proxy\\.business|proxy\\.enterprise)\\.githubcopilot\\.com",
+      "category": "copilot",
+      "reason": "GitHub Copilot APIs. Copilot is intentionally outside this wrapper."
+    },
+    {
+      "host": "copilot-proxy.githubusercontent.com",
+      "category": "copilot",
+      "reason": "GitHub Copilot proxy. Copilot is intentionally outside this wrapper."
+    },
+    {
+      "host": "copilot-workspace.githubnext.com",
+      "category": "copilot",
+      "reason": "Copilot Workspace form target. Copilot is intentionally outside this wrapper."
+    },
+    {
+      "host": "copilotprodattachments.blob.core.windows.net",
+      "category": "copilot",
+      "reason": "Copilot chat attachment storage. Copilot is intentionally outside this wrapper."
+    },
+    {
+      "regex": "production-copilot-host(-[a-z0-9-]+)?\\.webpubsub\\.azure\\.com",
+      "category": "copilot",
+      "reason": "Copilot real-time (WebSocket) hosts, one per Azure region. Copilot is intentionally outside this wrapper, so new regions need no change."
+    },
+    {
+      "host": "*.rel.tunnels.api.visualstudio.com",
+      "category": "codespaces",
+      "reason": "Codespaces / VS Code dev tunnels. Intentionally outside this wrapper; wildcards are never copied."
+    },
+    {
+      "host": "*.actions.githubusercontent.com",
+      "category": "wildcard",
+      "reason": "Regional Actions live-log hosts. Not blanket-approved: a wildcard is never copied; a concrete host needs its own reviewed entry."
+    },
+    {
+      "host": "*.githubusercontent.com",
+      "category": "wildcard",
+      "reason": "Wildcard in GitHub's img-src. Never copied; the exact githubusercontent.com hosts the app needs are listed one by one."
+    },
+    {
+      "host": "*.googleusercontent.com",
+      "category": "wildcard",
+      "reason": "Wildcard in GitHub's img-src. Never copied; only lh3.googleusercontent.com/a/ (account avatars) is allowed."
+    },
+    {
+      "host": "alive-staging.github.com",
+      "category": "staging",
+      "reason": "Staging real-time channel. Only the production channel alive.github.com is allowed."
+    },
+    {
+      "host": "marketplace-screenshots.githubusercontent.com",
+      "category": "not needed",
+      "reason": "Marketplace listing screenshots. Reviewed with the original host inventory and not approved."
+    },
+    {
+      "regex": "(customer-stories-feed|spotlights-feed|explore-feed)\\.github\\.com",
+      "category": "not needed",
+      "reason": "Marketing/Explore feed images. Reviewed with the original host inventory and not approved."
+    },
+    {
+      "host": "assets.ctfassets.net",
+      "category": "not needed",
+      "reason": "Third Contentful media host named by the homepage CSP. The homepage HTML only references images.ctfassets.net and videos.ctfassets.net (both allowed, pinned to GitHub's space); no request to this host has been observed."
+    },
+    {
+      "host": "www.youtube-nocookie.com",
+      "category": "not needed",
+      "reason": "Embedded marketing videos on the homepage. No YouTube browsing or playback is granted by this wrapper."
+    },
+    {
+      "host": "play.google.com",
+      "category": "telemetry",
+      "reason": "Google sign-in page logging (play.google.com/log). Refused on purpose; the sign-in form renders without it."
+    },
+    {
+      "host": "content-autofill.googleapis.com",
+      "category": "platform",
+      "reason": "Requested by the Android WebView's own autofill service, not by github.com. Refused."
+    }
+  ]
+}

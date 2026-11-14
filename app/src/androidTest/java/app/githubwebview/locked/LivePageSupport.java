@@ -207,6 +207,29 @@ final class LivePageSupport {
                 size.matches("[0-9]+") && Long.parseLong(size) > 1000);
     }
 
+    /**
+     * The window that currently receives touches, as the system reports it - for example this app's
+     * activity, or an emulator "System UI isn't responding" dialog. Diagnostic only.
+     */
+    static String currentFocusWindow() throws Exception {
+        for (String line : shell("dumpsys window").split("\n")) {
+            String trimmed = line.trim();
+            if (trimmed.startsWith("mCurrentFocus=")) return trimmed;
+        }
+        return "mCurrentFocus=unknown";
+    }
+
+    static boolean appWindowHasFocus(ActivityScenario<MainActivity> scenario) {
+        boolean[] focus = new boolean[1];
+        scenario.onActivity(a -> focus[0] = a.hasWindowFocus());
+        return focus[0];
+    }
+
+    /** Closes system dialogs (never an app window). Test instrumentation shell privilege only. */
+    static void dismissSystemDialogs() throws Exception {
+        shell("am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS");
+    }
+
     static String shell(String command) throws Exception {
         ParcelFileDescriptor fd = InstrumentationRegistry.getInstrumentation().getUiAutomation()
                 .executeShellCommand(command);

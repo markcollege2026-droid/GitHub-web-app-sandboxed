@@ -153,9 +153,28 @@ public class EmailInputRegressionTest {
         });
         Thread.sleep(900);
         int before = LivePageSupport.height(scenario);
-        LivePageSupport.tap(scenario, selector);
-        assertTrue("tap must focus the real input", LivePageSupport.waitFor(scenario,
-                "document.activeElement===document.querySelector(" + JSONObject.quote(selector) + ")", 8_000));
+        String fieldHasFocus = "document.activeElement===document.querySelector(" + JSONObject.quote(selector) + ")";
+        boolean tapFocused = false;
+        for (int attempt = 1; attempt <= 3; attempt++) {
+            LivePageSupport.tap(scenario, selector);
+            tapFocused = LivePageSupport.waitFor(scenario, fieldHasFocus, 8_000);
+            if (tapFocused) break;
+            // This assertion failed in two CI runs that passed on an identical commit, on the GitHub
+            // form and the Google form alike, so record WHAT was in front instead of guessing.
+            String window = LivePageSupport.currentFocusWindow();
+            boolean foreign = !window.contains("app.githubwebview.locked/");
+            Log.i(TAG, "input probe " + name + " tap " + attempt + " did not focus the field; focused window="
+                    + window + " appWindowHasFocus=" + LivePageSupport.appWindowHasFocus(scenario)
+                    + " foreignWindowInFront=" + foreign);
+            LivePageSupport.screenshot(name + "-tap-not-focused-" + attempt);
+            // Retry ONLY when a window that is not this app (an emulator "isn't responding" or other
+            // system dialog) took the touch. If the app's own window was in front and a real tap still
+            // did not focus the field, that is a genuine failure and must stay one.
+            if (!foreign) break;
+            LivePageSupport.dismissSystemDialogs();
+            Thread.sleep(1_500);
+        }
+        assertTrue("tap must focus the real input", tapFocused);
         LivePageSupport.showKeyboard(scenario);
         long until = SystemClock.elapsedRealtime() + 20_000;
         while (SystemClock.elapsedRealtime() < until && (!LivePageSupport.keyboardVisible(scenario)

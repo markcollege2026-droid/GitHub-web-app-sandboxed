@@ -7,6 +7,7 @@ const path = require('path');
 const output = process.env.OBSERVATIONS_DIR || 'site-observations';
 const safe = value => { try { const u = new URL(value); return u.origin + u.pathname; } catch { return ''; } };
 const pages = [
+  ['home', 'https://github.com/'],
   ['login', 'https://github.com/login'],
   ['signup', 'https://github.com/signup'],
   ['repository', 'https://github.com/markcollege2026-droid/Arena.ai-apk'],

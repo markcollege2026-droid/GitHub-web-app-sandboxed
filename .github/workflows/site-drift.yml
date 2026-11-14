@@ -1,0 +1,142 @@
+name: Site drift
+
+# Has github.com - or any host attached to it - changed since the app's allow-list was reviewed?
+#
+# The app can only reach the hosts in GitHubAllowlist.java. GitHub changes its site without notice
+# (new storage accounts, new CDNs, new widgets), so this workflow looks at the live site and compares:
+#
+#   observe  - reads the Content-Security-Policy of public github.com pages and records which hosts a
+#              signed-out browser really requests, then classifies every host as ALLOWED / PATTERN /
+#              EXCLUDED (a recorded refusal) / UNREVIEWED. An UNREVIEWED host fails the job: a person
+#              has to decide. Nothing is ever added to the allow-list automatically.
+#   refresh  - only when started by hand with "refresh" ticked, and never on the default branch:
+#              commits the new snapshot (docs/observed-github-csp.txt) and report (docs/SITE-DRIFT.md)
+#              to the branch the workflow was started on.
+#
+# Signed out and read only: no credentials, cookies, account creation or CAPTCHA solving.
+# The schedule only runs on the default branch, i.e. once this file has been merged.
+
+on:
+  workflow_dispatch:
+    inputs:
+      refresh:
+        description: 'Commit the new snapshot and report to this branch (refused on the default branch)'
+        type: boolean
+        default: false
+  schedule:
+    - cron: '17 5 * * 1'
+  push:
+    branches:
+      - 'arena/**'
+    paths:
+      - 'scripts/site-drift.py'
+      - 'scripts/site-observations.cjs'
+      - 'docs/site-reviewed-exclusions.json'
+      - 'app/src/main/java/app/githubwebview/locked/policy/GitHubAllowlist.java'
+      - '.github/workflows/site-drift.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: site-drift-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  observe:
+    name: Compare github.com with the app allow-list
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      exit: ${{ steps.drift.outputs.exit }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # The browser pass is additional evidence. If it cannot run, the comparison below still runs on
+      # the Content-Security-Policy alone and says so in its report.
+      - name: Record what a signed-out browser actually requests
+        continue-on-error: true
+        run: |
+          npm install --prefix "$RUNNER_TEMP/site-probe" --ignore-scripts --no-audit --no-fund playwright@1.56.1
+          if ! NODE_PATH="$RUNNER_TEMP/site-probe/node_modules" node scripts/site-observations.cjs > site-observations.log 2>&1; then
+            tail -n 30 site-observations.log
+            echo "::warning title=Site drift: browser pass failed::The signed-out browser observation did not complete; the report uses the Content-Security-Policy only."
+            exit 1
+          fi
+          grep -v '^::' site-observations.log || true
+
+      - name: Compare with the allow-list and the previous snapshot
+        id: drift
+        run: |
+          set +e
+          python3 scripts/site-drift.py --observations site-observations --out site-drift
+          code=$?
+          echo "exit=$code" >> "$GITHUB_OUTPUT"
+          exit $code
+
+      - name: Publish the report, the new snapshot and the browser observations
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: site-drift
+          path: |
+            site-drift/**
+            site-observations/**
+            site-observations.log
+          if-no-files-found: warn
+          retention-days: 30
+
+  refresh:
+    name: Commit the new snapshot to this branch
+    runs-on: ubuntu-latest
+    needs: observe
+    # Exit 0 = nothing unreviewed, 1 = something needs a decision (the report says what). Both are real
+    # observations worth recording; exit 2 means nothing was observed, and nothing is committed.
+    if: >-
+      always()
+      && github.event_name == 'workflow_dispatch'
+      && inputs.refresh
+      && github.ref_type == 'branch'
+      && github.ref_name != github.event.repository.default_branch
+      && (needs.observe.outputs.exit == '0' || needs.observe.outputs.exit == '1')
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout the branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: Download the observation
+        uses: actions/download-artifact@v4
+        with:
+          name: site-drift
+          path: ${{ runner.temp }}/site-drift
+
+      - name: Commit the snapshot and the report
+        run: |
+          set -euo pipefail
+          snapshot="$(find "$RUNNER_TEMP/site-drift" -name observed-github-csp.txt | head -n 1)"
+          report="$(find "$RUNNER_TEMP/site-drift" -name SITE-DRIFT.md | head -n 1)"
+          test -s "$snapshot" && test -s "$report"
+          cp "$snapshot" docs/observed-github-csp.txt
+          cp "$report" docs/SITE-DRIFT.md
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/observed-github-csp.txt docs/SITE-DRIFT.md
+          if git diff --cached --quiet; then
+            echo "::notice title=Site drift refresh::Nothing changed; no commit."
+            exit 0
+          fi
+          git commit -m "Refresh the signed-out github.com snapshot and drift report (run ${GITHUB_RUN_ID})"
+          git push origin "HEAD:${GITHUB_REF_NAME}" || {
+            git pull --rebase origin "${GITHUB_REF_NAME}"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          }
+          echo "::notice title=Site drift refresh::Committed $(git rev-parse HEAD) to ${GITHUB_REF_NAME}."

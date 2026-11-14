@@ -1,15 +1,27 @@
 # Reviewed host/role inventory
 
-This is the entire configured set, not a suffix/wildcard policy. Every host permits TLS tunnels
+This is the entire configured set: exact hosts plus one anchored host pattern, not a suffix/wildcard
+policy. Every host permits TLS tunnels
 on **443 only**. `PRODUCT` / `SIGN_IN` may be top-level pages; `ASSET` may only be a request or
 embedded document. Redirects and pop-ups do not convert an ASSET into a navigation destination.
+
+## Is this list still current?
+
+GitHub changes its site without notice, so the list is re-checked by a workflow instead of by memory.
+**[SITE-DRIFT.md](SITE-DRIFT.md)** is the latest result: what github.com names today, what changed
+since the previous snapshot, and what the app does with every host. The *Site drift* workflow
+(`.github/workflows/site-drift.yml`, `scripts/site-drift.py`) runs weekly and on demand. It fails when
+github.com names or requests a host that is neither in the tables below nor a recorded refusal in
+[site-reviewed-exclusions.json](site-reviewed-exclusions.json), so a new host is never silently adopted
+and never silently ignored. It only reports: changing what the app can reach is always a reviewed edit
+to `GitHubAllowlist.java`, its pinning test and this file.
 
 ## Evidence and selection
 
 * Primary HTML and Content-Security-Policy retrieved from `https://github.com/login`, a public
   repository/file page and an Actions page on 2026-10-18. A cookie-free/header-only snapshot is in
   [observed-github-csp.txt](observed-github-csp.txt). JS/CSS on `github.githubassets.com`, avatars,
-  APIs, file-preview origins, exact GitHub S3 buckets and the 20 exact Actions result-store accounts
+  APIs, file-preview origins, exact GitHub S3 buckets and the numbered Actions result-store accounts
   are identified there. Presence in CSP is evidence of intended use, not proof a feature was exercised.
 * Homepage HTML explicitly uses Contentful space `8aevphvgewt8`; only that prefix is approved on
   `images.ctfassets.net` and `videos.ctfassets.net`, not every customer's content.
@@ -70,26 +82,6 @@ interchangeable evidence. See [../TEST_REPORT.md](../TEST_REPORT.md) for actual 
 | `github-production-user-asset-6210df.s3.amazonaws.com` | ASSET | Any path | Added |
 | `github-production-repository-image-32fea6.s3.amazonaws.com` | ASSET | Any path | Added |
 | `github-production-release-asset-2e65be.s3.amazonaws.com` | ASSET | Any path | Added |
-| `productionresultssa0.blob.core.windows.net` | ASSET | Any path | Added |
-| `productionresultssa1.blob.core.windows.net` | ASSET | Any path | Added |
-| `productionresultssa2.blob.core.windows.net` | ASSET | Any path | Added |
-| `productionresultssa3.blob.core.windows.net` | ASSET | Any path | Added |
-| `productionresultssa4.blob.core.windows.net` | ASSET | Any path | Added |
-| `productionresultssa5.blob.core.windows.net` | ASSET | Any path | Added |
-| `productionresultssa6.blob.core.windows.net` | ASSET | Any path | Added |
-| `productionresultssa7.blob.core.windows.net` | ASSET | Any path | Added |
-| `productionresultssa8.blob.core.windows.net` | ASSET | Any path | Added |
-| `productionresultssa9.blob.core.windows.net` | ASSET | Any path | Added |
-| `productionresultssa10.blob.core.windows.net` | ASSET | Any path | Added |
-| `productionresultssa11.blob.core.windows.net` | ASSET | Any path | Added |
-| `productionresultssa12.blob.core.windows.net` | ASSET | Any path | Added |
-| `productionresultssa13.blob.core.windows.net` | ASSET | Any path | Added |
-| `productionresultssa14.blob.core.windows.net` | ASSET | Any path | Added |
-| `productionresultssa15.blob.core.windows.net` | ASSET | Any path | Added |
-| `productionresultssa16.blob.core.windows.net` | ASSET | Any path | Added |
-| `productionresultssa17.blob.core.windows.net` | ASSET | Any path | Added |
-| `productionresultssa18.blob.core.windows.net` | ASSET | Any path | Added |
-| `productionresultssa19.blob.core.windows.net` | ASSET | Any path | Added |
 | `images.ctfassets.net` | ASSET | `/8aevphvgewt8/` | Added |
 | `videos.ctfassets.net` | ASSET | `/8aevphvgewt8/` | Added |
 | `accounts.google.com` | SIGN_IN | Any path | Retained |
@@ -108,10 +100,25 @@ interchangeable evidence. See [../TEST_REPORT.md](../TEST_REPORT.md) for actual 
 | `geo.captcha-delivery.com` | ASSET | `/captcha/`, `/interstitial/` | Added |
 | `ct.captcha-delivery.com` | ASSET | Any path | Added |
 
-**66 exact hosts:** 2 PRODUCT,
+**46 exact hosts:** 2 PRODUCT,
 1 SIGN_IN,
-63 ASSET.
-`AllowlistRegressionTest` pins the literal list, roles and reviewed path exceptions.
+43 ASSET - **plus one anchored host pattern** (below).
+`AllowlistRegressionTest` pins the literal list, roles and reviewed path exceptions, and
+`DomainsDocTest` fails the build if this table and the enforced configuration ever differ.
+
+### The one host pattern
+
+| Pattern name | Role | Allowed path prefixes | Complete host must match | Change from Arena |
+|---|---|---|---|---|
+| `productionresultssa<digits>.blob.core.windows.net` | ASSET | Any path | `productionresultssa[0-9]+\.blob\.core\.windows\.net` | Added |
+
+GitHub Actions stores artifacts and logs in numbered storage accounts and keeps adding accounts
+(`sa0`-`sa19` in October 2026, `sa30`-`sa32` named by the site in November 2026). The 20 hosts that
+were first listed one by one were replaced by this single rule so that a new number does not break
+artifact downloads. It is not a wildcard or a suffix match: the whole host name must match, so
+`productionresultssa30.blob.core.windows.net.evil.example`, `evilproductionresultssa30.blob.core.windows.net`,
+`productionresultssaX.blob.core.windows.net` and `unrelated.blob.core.windows.net` are refused
+(see [ARTIFACT-DOWNLOAD-WATCHDOG.md](ARTIFACT-DOWNLOAD-WATCHDOG.md)). A matched host is resource-only.
 
 ASSET is a URL role, not an enforced MIME type. Paths are **prefixes**, using the original engine's
 raw-path checks (no percent escapes or `..` in pinned paths). These are prefix rules,
@@ -121,7 +128,7 @@ not exact-file matchers. The proxy cannot inspect encrypted paths or every redir
 
 ## Delta from Arena 1.2.0
 
-**58 hosts added, 8 retained, 13 removed.** The table marks each added host and its role.
+**38 exact hosts and one host pattern added, 8 retained, 13 removed.** The tables mark each added host and its role.
 
 Retained with unchanged role/path scope: `accounts.google.com`, `apis.google.com`, `fonts.gstatic.com`, `lh3.googleusercontent.com`, `ssl.gstatic.com`, `www.google.com`, `www.gstatic.com`, `www.recaptcha.net`.
 
