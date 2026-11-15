@@ -1,6 +1,9 @@
 package app.githubwebview.locked;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
 import android.os.Build;
@@ -37,6 +40,8 @@ import java.util.Map;
 import java.util.concurrent.Callable;
 
 import app.githubwebview.locked.net.DownloadStateStore;
+import app.githubwebview.locked.policy.GitHubAllowlist;
+import app.githubwebview.locked.policy.PolicyResult;
 import app.githubwebview.locked.web.EgressGuard;
 
 /**
@@ -292,6 +297,64 @@ public class DownloadTapFlowTest {
             out.add(time + " APP " + (message.length() > 150 ? message.substring(0, 150) : message));
         }
         return out;
+    }
+
+    /** How many "Save this file?" windows this app has on screen right now. */
+    private static int offersOnScreen() {
+        final int[] count = new int[1];
+        final int alertTitleId = android.content.res.Resources.getSystem().getIdentifier("alertTitle", "id", "android");
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
+            for (View root : WindowInspector.getGlobalWindowViews()) {
+                TextView title = alertTitleId == 0 ? null : (TextView) root.findViewById(alertTitleId);
+                if (title != null && OFFER.contentEquals(title.getText())) count[0]++;
+            }
+        });
+        return count[0];
+    }
+
+    /**
+     * The same refusals a second and third tap produce, delivered directly, without the network: the
+     * live cases above only produce them when the timing happens to fall that way.
+     */
+    @Test
+    public void furtherRequestsDoNotStackOffersAndATouchBesideTheOfferDoesNotCloseIt() throws Exception {
+        Assume.assumeTrue("window inspection needs Android 10+", Build.VERSION.SDK_INT >= 29);
+        final String file = "https://codeload.github.com" + REPO + "/zip/refs/heads/main";
+        final PolicyResult refused = GitHubAllowlist.productionConfig().evaluateNavigation(file);
+        assertFalse("a storage host is never a page", refused.isAllowed());
+        try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
+            scenario.onActivity(a -> {
+                a.onNavigationBlocked(file, refused);
+                a.onNavigationBlocked(file, refused);
+                a.onNavigationBlocked(file + "?signature=differs-on-every-request", refused);
+            });
+            assertTrue("the offer must appear", await(5_000L, () -> offersOnScreen() > 0));
+            SystemClock.sleep(800L);
+            assertEquals("three requests, one question", 1, offersOnScreen());
+
+            LivePageSupport.closeForeignSystemDialogs();
+            int[] box = offerBounds();
+            assertNotNull(box);
+            float besideX = (box[0] + box[2]) / 2f;
+            float besideY = box[1] / 2f + 60f;
+            assertTrue("the test touch must be beside the offer, not on it: " + besideY + " vs " + box[1], besideY < box[1] - 20);
+            touch(besideX, besideY);
+            SystemClock.sleep(1_000L);
+            assertEquals("a touch beside the offer must leave it on screen", 1, offersOnScreen());
+
+            float[] cancel = offerButton(android.R.id.button2);
+            assertNotNull(cancel);
+            touch(cancel[0], cancel[1]);
+            assertTrue("Cancel closes the offer", await(3_000L, () -> offersOnScreen() == 0));
+
+            // A cancelled question can be asked again straight away.
+            scenario.onActivity(a -> a.onNavigationBlocked(file, refused));
+            assertTrue("the offer must come back after Cancel", await(5_000L, () -> offersOnScreen() == 1));
+            cancel = offerButton(android.R.id.button2);
+            assertNotNull(cancel);
+            touch(cancel[0], cancel[1]);
+            assertTrue(await(3_000L, () -> offersOnScreen() == 0));
+        }
     }
 
     @Test
