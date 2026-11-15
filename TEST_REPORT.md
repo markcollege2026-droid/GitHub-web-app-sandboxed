@@ -149,3 +149,29 @@ on `7338b0a54c16c977eefe034026a1c232b4011923` passed every job: **4,009 JVM case
 fail-closed download case); the exact signed release APK installed and launched. Details, including
 the unexplained intermittent "tap must focus the real input" failure seen earlier on `main`, are in
 [docs/SITE-RECHECK-2026-11-14.md](docs/SITE-RECHECK-2026-11-14.md).
+
+## 2026-11-14: Copilot, background downloads without a dialog, emulator-dialog flake
+
+Source `9a02bfe`, Android CI run
+[43657945697](https://github.com/markcollege2026-droid/GitHub-web-app-sandboxed/actions/runs/43657945697):
+all jobs passed. JVM: 4015 tests, 4015 passed. Emulator (API 34, WebView 113): 69 tests, 67 passed,
+0 failed, 2 skipped (the same two as before). Release APK SHA-256
+`f113251f0411b64d5b040170722c3f7d856cbd10ba135a7d2bb01edeca55c357`, installed and launched on the
+emulator by the release-verification step. Site drift run 43657780301 passed with Copilot allowed.
+
+The first push of this change (run 43657780286) failed one JVM test,
+`everyThirdPartyAssetEntryIsResourceOnlyAndReviewableAtItsPathScope`: the eight Copilot API hosts were
+path-unrestricted without being listed as reviewed exceptions. They are now listed there deliberately;
+the attachment storage host stays pinned to its one container.
+
+What this run does and does not show:
+
+* **Downloads.** Two new device tests drive the status the service publishes and check that the page
+  keeps window focus while a transfer or a failure is shown, that Hide does not cancel, and that a
+  dismissed failure is not shown again by a new Activity. The existing tests still download and cancel
+  real files through the service. No test taps through GitHub pages by hand during a real transfer.
+* **Copilot.** Policy decisions only (requests and tunnels allowed, never a page, look-alikes refused).
+  Copilot needs a signed-in account, so no conversation was exercised.
+* **The earlier red runs** (43125836949, 43125854812). Their screenshots show the emulator's "Pixel
+  Launcher isn't responding" dialog in front of the app. The dialog appears only occasionally, so one
+  green run cannot prove the countermeasure; it was not reproduced on demand.
