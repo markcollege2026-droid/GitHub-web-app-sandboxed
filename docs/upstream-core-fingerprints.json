@@ -189,8 +189,8 @@
       "upstreamFileSha256": "f58b8afbeda37328611a6a9d8945d010378e0398c00601558ca01f202f2886cc",
       "adaptedCodeSha256": "645f5f2f6f641dc5c0903f79357b29c992800ee798453b53f5f3f20c434018c6",
       "reviewedException": {
-        "summary": "Records verified primary-page navigations and avoids treating active resource-host download redirects as page recovery events.",
-        "rationale": "The visible WebView may transiently expose an artifact storage URL during download handling. Verified main-frame page tracking and resource-only download suppression preserve the current workflow page without loosening the document policy; unauthorized navigation still triggers the existing recovery path.",
+        "summary": "Records verified primary-page navigations, avoids treating active resource-host download redirects as page recovery events, and does not reload the page for WebView's report about a file link it has just refused.",
+        "rationale": "The visible WebView may transiently expose an artifact storage URL during download handling. Verified main-frame page tracking and resource-only download suppression preserve the current workflow page without loosening the document policy; unauthorized navigation still triggers the existing recovery path. Second case, 2026-11-14: when shouldOverrideUrlLoading refuses a main-frame navigation to a resource-only host (the link is a file), WebView still reports onPageFinished for that refused URL. The report used to trigger a recovery reload of the verified page about 0.1 to 0.2 seconds after the save offer appeared, measured in every download on the emulator. It is now ignored only when all of these hold: it names exactly the URL this client refused, the refusal was for a resource-only host, it arrives within five seconds, and the WebView itself still reports a verified page. A resource host that commits as the document is still refused by doUpdateVisitedHistory and by the watchdog.",
         "requiredTokens": [
           "host",
           ".",
@@ -199,10 +199,13 @@
           "url",
           ")",
           "isDownloadResourceUrl",
-          "isDownloadInProgress"
+          "isDownloadInProgress",
+          "isRefusedFileNavigation",
+          "rememberRefusedFileNavigation",
+          "getUrl"
         ],
         "forbiddenTokens": [],
-        "adaptedCodeSha256": "1c0ce601a7c95dd4673b62bfb69589b85d2f6e47bb2398b1a4ae45060561285f"
+        "adaptedCodeSha256": "b3a3fbe668f809164db870cee9a5aea9525a303483ee3d17477658826878882c"
       }
     },
     "app/src/main/java/app/githubwebview/locked/web/BaseGuardHost.java": {

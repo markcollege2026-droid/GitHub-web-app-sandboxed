@@ -13,6 +13,7 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
+import android.webkit.WebView;
 import android.view.inspector.WindowInspector;
 import android.widget.TextView;
 
@@ -204,6 +205,41 @@ public class DownloadTapFlowTest {
         return found[0];
     }
 
+    /** Where the save offer's window is on screen: {left, top, right, bottom}, or null. */
+    private static int[] offerBounds() {
+        final int[][] found = new int[1][];
+        final int alertTitleId = android.content.res.Resources.getSystem().getIdentifier("alertTitle", "id", "android");
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
+            for (View root : WindowInspector.getGlobalWindowViews()) {
+                TextView title = alertTitleId == 0 ? null : (TextView) root.findViewById(alertTitleId);
+                if (title == null || !OFFER.contentEquals(title.getText())) continue;
+                int[] at = new int[2];
+                root.getLocationOnScreen(at);
+                found[0] = new int[]{at[0], at[1], at[0] + root.getWidth(), at[1] + root.getHeight()};
+            }
+        });
+        return found[0];
+    }
+
+    /** Screen centre of the probe link, or null when the page no longer has it. */
+    private static float[] linkPoint(ActivityScenario<MainActivity> scenario) throws Exception {
+        final JSONObject rect = LivePageSupport.object(scenario, "(function(){var e=document.getElementById('dl-probe');"
+                + "if(!e)return {};var r=e.getBoundingClientRect(),v=window.visualViewport;"
+                + "return {x:r.left+r.width/2-(v?v.offsetLeft:0),y:r.top+r.height/2-(v?v.offsetTop:0),"
+                + "width:v?v.width:window.innerWidth};})()");
+        if (!rect.has("x")) return null;
+        final float[] xy = new float[2];
+        scenario.onActivity(a -> {
+            WebView view = LivePageSupport.activeView(a);
+            int[] origin = new int[2];
+            view.getLocationOnScreen(origin);
+            float scale = view.getWidth() / (float) rect.optDouble("width", 1);
+            xy[0] = origin[0] + (float) rect.optDouble("x") * scale;
+            xy[1] = origin[1] + (float) rect.optDouble("y") * scale;
+        });
+        return xy;
+    }
+
     /** One real touch through the system input pipeline, the same way a finger arrives. */
     private static void touch(float x, float y) {
         long down = SystemClock.uptimeMillis();
@@ -264,14 +300,20 @@ public class DownloadTapFlowTest {
         if (Build.VERSION.SDK_INT >= 33) {
             LivePageSupport.shell("pm grant " + context().getPackageName() + " android.permission.POST_NOTIFICATIONS");
         }
-        // {name, link, ms a person takes before pressing Save, link taps, "cancel-first" or ""}
+        // {name, link, ms a person takes before pressing Save, what else the person does}
+        //   early        Save is pressed the instant its button exists, before the dialog has focus
+        //   double       the link is tapped twice, 150 ms apart, before anything has appeared
+        //   impatient    the link's spot is tapped once more just after the offer has appeared
+        //   cancel-first the offer is cancelled, then the link is tapped again
         String[][] cases = {
-                {"zip", REPO + "/archive/refs/heads/main.zip", "350", "1", ""},
-                {"zip-slow", REPO + "/archive/refs/heads/main.zip", "1600", "1", ""},
-                {"apk", REPO + "/releases/download/v1.0.0/app-release.apk", "700", "1", ""},
-                {"raw", REPO + "/raw/main/README.md", "350", "1", ""},
-                {"twice", REPO + "/archive/refs/heads/main.zip", "700", "2", ""},
-                {"again", REPO + "/raw/main/README.md", "700", "1", "cancel-first"},
+                {"zip", REPO + "/archive/refs/heads/main.zip", "350", ""},
+                {"zip-slow", REPO + "/archive/refs/heads/main.zip", "1600", ""},
+                {"apk", REPO + "/releases/download/v1.0.0/app-release.apk", "700", ""},
+                {"raw", REPO + "/raw/main/README.md", "350", ""},
+                {"early", REPO + "/raw/main/README.md", "0", "early"},
+                {"double", REPO + "/archive/refs/heads/main.zip", "700", "double"},
+                {"impatient", REPO + "/archive/refs/heads/main.zip", "700", "impatient"},
+                {"again", REPO + "/raw/main/README.md", "700", "cancel-first"},
         };
         List<String> problems = new ArrayList<String>();
         try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
@@ -295,20 +337,51 @@ public class DownloadTapFlowTest {
                 long statusBefore = DownloadStateStore.read(context()).updatedAt;
                 placeLink(scenario, each[1]);
 
-                int linkTaps = Integer.parseInt(each[3]);
-                for (int i = 1; i <= linkTaps; i++) {
-                    timeline.note("TAP link" + (linkTaps > 1 ? " #" + i : ""));
-                    try {
-                        LivePageSupport.tap(scenario, "#dl-probe");
-                    } catch (AssertionError gone) {
-                        timeline.note("the link could not be tapped: " + gone.getMessage());
-                    }
-                    if (i < linkTaps) SystemClock.sleep(600L);
+                final String mode = each[3];
+                int linkTaps = 0;
+                boolean dismissedByOutsideTap = false;
+                LivePageSupport.closeForeignSystemDialogs();
+                float[] link = linkPoint(scenario);
+                Assume.assumeTrue("the probe link was not placed", link != null);
+                timeline.note("TAP link");
+                touch(link[0], link[1]);
+                linkTaps++;
+                if ("double".equals(mode)) {
+                    SystemClock.sleep(70L);
+                    timeline.note("TAP link a second time");
+                    touch(link[0], link[1]);
+                    linkTaps++;
                 }
                 boolean offered = await(25_000L, () -> timeline.offersNow > 0);
                 timeline.note(offered ? "offer is on screen" : "NO offer appeared");
 
-                if (offered && "cancel-first".equals(each[4])) {
+                if (offered && "impatient".equals(mode)) {
+                    SystemClock.sleep(200L);
+                    int[] box = offerBounds();
+                    boolean outside = box == null || link[0] < box[0] || link[0] > box[2] || link[1] < box[1] || link[1] > box[3];
+                    timeline.note("TAP the link's spot again, " + (outside ? "outside" : "INSIDE") + " the offer");
+                    touch(link[0], link[1]);
+                    linkTaps++;
+                    SystemClock.sleep(1_200L);
+                    if (timeline.offersNow > 0) {
+                        timeline.note("the offer is still on screen");
+                    } else {
+                        dismissedByOutsideTap = true;
+                        timeline.note("the offer is GONE: that tap dismissed it, nothing was saved");
+                        if (!"true".equals(LivePageSupport.evaluate(scenario, "!!document.getElementById('dl-probe')"))) {
+                            LivePageSupport.waitFor(scenario, "document.readyState==='complete' && !!document.body", 30_000);
+                            placeLink(scenario, each[1]);
+                        }
+                        link = linkPoint(scenario);
+                        timeline.note("TAP link again");
+                        if (link != null) touch(link[0], link[1]);
+                        linkTaps++;
+                        offered = await(25_000L, () -> timeline.offersNow > 0);
+                        timeline.note(offered ? "offer is on screen" : "NO offer appeared");
+                    }
+                }
+
+                if (offered && "cancel-first".equals(mode)) {
                     SystemClock.sleep(600L);
                     float[] cancel = offerButton(android.R.id.button2);
                     timeline.note("TAP Cancel");
@@ -321,12 +394,10 @@ public class DownloadTapFlowTest {
                         LivePageSupport.waitFor(scenario, "document.readyState==='complete' && !!document.body", 30_000);
                         placeLink(scenario, each[1]);
                     }
+                    link = linkPoint(scenario);
                     timeline.note("TAP link again");
-                    try {
-                        LivePageSupport.tap(scenario, "#dl-probe");
-                    } catch (AssertionError gone) {
-                        timeline.note("the link could not be tapped: " + gone.getMessage());
-                    }
+                    if (link != null) touch(link[0], link[1]);
+                    linkTaps++;
                     offered = await(25_000L, () -> timeline.offersNow > 0);
                     timeline.note(offered ? "offer is on screen" : "NO offer appeared");
                 }
@@ -349,7 +420,7 @@ public class DownloadTapFlowTest {
                         await(1_500L, () -> timeline.offersNow < offersBefore || timeline.offersNow == 0);
                     }
                 }
-                boolean finished = await(150_000L, () -> {
+                boolean finished = saveTaps > 0 && await(150_000L, () -> {
                     DownloadStateStore.Snapshot s = DownloadStateStore.read(context());
                     return s.updatedAt > statusBefore && s.state != DownloadStateStore.State.ACTIVE;
                 });
@@ -382,11 +453,13 @@ public class DownloadTapFlowTest {
                 for (String entry : merged) Log.i(TAG, "dialog probe " + name + " " + entry);
 
                 if (!offered) problems.add(name + ": no save offer appeared");
-                if (linkTaps == 1 && each[4].isEmpty()) {
-                    if (timeline.offersCreated() != 1) problems.add(name + ": " + timeline.offersCreated() + " offers for one tap");
-                    if (saveTaps != 1) problems.add(name + ": Save needed " + saveTaps + " taps");
+                if (mode.isEmpty() || "early".equals(mode) || "double".equals(mode)) {
+                    if (timeline.offersCreated() != 1) problems.add(name + ": " + timeline.offersCreated() + " offers for one download");
                     if (timeline.dialogs.size() != 1) problems.add(name + ": dialogs shown " + timeline.dialogTitles());
                 }
+                // "early" presses before a person could; its count is recorded, not required.
+                if (!"early".equals(mode) && saveTaps != 1) problems.add(name + ": Save needed " + saveTaps + " taps");
+                if (dismissedByOutsideTap) problems.add(name + ": a tap beside the offer made it disappear");
                 if (timeline.maxDialogs > 1) problems.add(name + ": " + timeline.maxDialogs + " dialogs were stacked");
                 if (timeline.overlayShownCount > 0) problems.add(name + ": the blocked overlay appeared");
                 if (!finished || end.state != DownloadStateStore.State.COMPLETE) problems.add(name + ": ended as " + end.state);

@@ -53,6 +53,13 @@ public class GitHubWebViewClient extends WebViewClient {
 
     private final GuardHost host;
 
+    /** How long after a refusal WebView's report about that same navigation is still expected. */
+    private static final long REFUSED_NAVIGATION_WINDOW_MS = 5_000L;
+
+    /** The file link refused most recently in the main frame, until WebView has reported it. */
+    private String refusedFileNavigation;
+    private long refusedFileNavigationAt;
+
     public GitHubWebViewClient(GuardHost host) {
         if (host == null) {
             throw new IllegalArgumentException("host");
@@ -93,6 +100,7 @@ public class GitHubWebViewClient extends WebViewClient {
 
         recordBlock(result, url, mainFrame, isRedirect(request));
         if (mainFrame) {
+            rememberRefusedFileNavigation(view, url, result);
             host.onNavigationBlocked(url, result);
         }
         return true;
@@ -272,10 +280,57 @@ public class GitHubWebViewClient extends WebViewClient {
                         + result.canonicalHost());
                 return;
             }
+            if (isRefusedFileNavigation(view, url, where)) {
+                // WebView reports a started/finished "page" for the navigation this client has just
+                // refused to perform. The report names the file link, not what is on screen: the
+                // verified page is still there, with the offer to save the file in front of it.
+                // Reloading it now is the flash behind that offer, and loses the user's place.
+                Log.i(TAG, where + " for a file link refused before it loaded, page unchanged: host="
+                        + result.canonicalHost());
+                return;
+            }
             host.metrics().increment(PolicyMetrics.Counter.RECOVERY_RELOADS);
             host.metrics().recordBlock(result.reason(), result.canonicalHost(), url);
             host.onRecoveryRequired(where + ":" + (result.reason() == null ? "?" : result.reason().name()), url);
         }
+    }
+
+    /**
+     * Remember a main-frame navigation that was refused because its target is a file on a
+     * resource-only host. Nothing else is ever remembered: a refusal for any other reason clears it.
+     */
+    private void rememberRefusedFileNavigation(WebView view, String url, PolicyResult result) {
+        boolean fileOnResourceHost = host.isPrimaryWebView(view)
+                && result.reason() == BlockReason.DOCUMENT_NOT_ALLOWED
+                && host.policy().evaluateRequest(url).isAllowed();
+        refusedFileNavigation = fileOnResourceHost ? url : null;
+        refusedFileNavigationAt = fileOnResourceHost ? android.os.SystemClock.elapsedRealtime() : 0L;
+    }
+
+    /**
+     * True when {@code url} is exactly the file link this client refused a moment ago and the WebView
+     * itself still reports a verified page. Both must hold. A resource host that really became the
+     * document fails the second test, and a commit is refused by {@link #doUpdateVisitedHistory}
+     * and by the watchdog regardless of this answer.
+     */
+    private boolean isRefusedFileNavigation(WebView view, String url, String where) {
+        String refused = refusedFileNavigation;
+        if (refused == null || !refused.equals(url)) {
+            return false;
+        }
+        if ("onPageFinished".equals(where)) {
+            refusedFileNavigation = null; // the report it was kept for has arrived
+        }
+        if (android.os.SystemClock.elapsedRealtime() - refusedFileNavigationAt > REFUSED_NAVIGATION_WINDOW_MS) {
+            return false;
+        }
+        String onScreen = view == null ? null : view.getUrl();
+        if (onScreen == null || onScreen.isEmpty()
+                || !host.policy().evaluateNavigation(onScreen).isAllowed()) {
+            Log.w(TAG, where + " for a refused file link, but the page on screen is not a verified page");
+            return false;
+        }
+        return true;
     }
 
     /**
