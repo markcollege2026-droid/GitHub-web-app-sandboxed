@@ -243,6 +243,14 @@ jobs:
             mkdir -p docs/evidence
             adb logcat -c || true
             adb shell settings put secure show_ime_with_hard_keyboard 1
+            # Runs 43125836949 and 43125854812 failed because the emulator put its Pixel Launcher
+            # not-responding dialog over the app, and that system dialog took the touch of the two
+            # input tests (it is visible in their github-login-empty.png). With this setting Android
+            # ends a non-responding background app instead of asking; nothing about the app under
+            # test changes. Close any dialog that is already up, and record what is in front.
+            adb shell settings put global hide_error_dialogs 1
+            adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS || true
+            adb shell dumpsys window | grep -E "mCurrentFocus|mFocusedApp" | tee docs/evidence/window-focus-before-tests.txt || true
             adb shell dumpsys webviewupdate > docs/evidence/webview-provider.txt
             echo "::notice title=WebView provider::$(tr '\n' ' ' < docs/evidence/webview-provider.txt)"
             adb shell getprop ro.build.version.release > docs/evidence/android-version.txt
@@ -278,6 +286,36 @@ jobs:
       # Failures are surfaced as workflow annotations (readable from the Checks API and the run page
       # without downloading the artifact or the raw log): one per failed test, plus the Gradle tail when
       # the run broke before any test could report.
+      # Its own step: a step may publish only ten notices, and the summary step below uses all ten.
+      - name: Report the download tap flow
+        if: always()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os, re
+          path = 'docs/evidence/device-logcat.txt'
+          lines = []
+          if os.path.exists(path):
+              for line in open(path, errors='replace').read().splitlines():
+                  m = re.match(r'\S+ \S+\s+\d+\s+\d+ \w \S+: dialog probe (.*)', line)
+                  if m:
+                      lines.append(m.group(1))
+          def esc(msg):
+              return msg.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+          chunk, size, part = [], 0, 1
+          for line in lines + [None]:
+              if line is None or size + len(line) > 1500:
+                  if chunk and part <= 9:
+                      print(f"::notice title=Download tap flow {part}::{esc(chr(10).join(chunk))}")
+                      part += 1
+                  chunk, size = [], 0
+              if line is not None:
+                  chunk.append(line[:300])
+                  size += min(len(line), 300) + 1
+          if not lines:
+              print("::notice title=Download tap flow 0::no tap-flow lines in the device log")
+          PY
+
       - name: Summarise instrumented failures as annotations
         if: always()
         shell: bash

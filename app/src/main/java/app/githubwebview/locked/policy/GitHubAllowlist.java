@@ -11,16 +11,21 @@ import java.util.Map;
  *
  * <p>PRODUCT = github.com and its www redirect. SIGN_IN = accounts.google.com only.
  * All other entries are ASSET: requests and embedded documents, never top-level pages, redirects
- * or pop-up destinations. Exact hosts only, with one narrowly scoped exception: GitHub Actions
- * results storage hosts are matched by the exact structure
- * {@code productionresultssa<digits>.blob.core.windows.net} (see {@link #resourceHostPatterns()}),
- * because the numeric endpoint grows over time and an enumerated list breaks on every expansion.
- * That pattern is anchored to the complete hostname, is resource-only, and is not a suffix match,
+ * or pop-up destinations. Exact hosts only, with two narrowly scoped exceptions for host families
+ * that GitHub keeps extending (see {@link #resourceHostPatterns()}): GitHub Actions results storage
+ * ({@code productionresultssa<digits>.blob.core.windows.net}, the number grows over time) and the
+ * regional GitHub Copilot real-time hosts
+ * ({@code production-copilot-host[-<region>].webpubsub.azure.com}, one per Azure region).
+ * Each pattern is anchored to the complete hostname, is resource-only, and is not a suffix match,
  * a wildcard, remote configuration or a user approval. Every connection still passes the
  * original CONNECT proxy on port 443.</p>
  *
+ * <p>GitHub Copilot on github.com is allowed (see {@link #copilotEntries()}): its pages are
+ * github.com pages, and the Copilot service hosts are ASSET entries like every other service host,
+ * so none of them can become the visible page.</p>
+ *
  * <p>Host evidence and limitations are in docs/DOMAINS.md. GitHub's response CSP is evidence of
- * service names, NOT a policy to copy wholesale: telemetry, arbitrary clouds, Pages, Copilot,
+ * service names, NOT a policy to copy wholesale: telemetry, arbitrary clouds, Pages, Codespaces,
  * marketing links and enterprise identity providers remain outside this allow-list.</p>
  *
  * <p>The original input fix remains: identity bundles are not path-pinned, SUBDOCUMENT differs
@@ -54,6 +59,17 @@ public final class GitHubAllowlist {
      * solve, pre-answer or script a challenge.</p>
      */
     public static final boolean ENABLE_CAPTCHA_WIDGETS = true;
+
+    /**
+     * GitHub Copilot on github.com: chat ({@code github.com/copilot}), Copilot in pull requests,
+     * issues and the code view, and the coding agent's live session view.
+     *
+     * <p>The Copilot pages themselves are github.com pages. What this switch adds is the set of
+     * service hosts those pages call ({@link #copilotEntries()}) and the regional real-time
+     * (WebSocket) hosts in {@link #resourceHostPatterns()}. All of them are <em>assets only</em>.
+     * Set to {@code false} to refuse Copilot again; nothing else in the app depends on it.</p>
+     */
+    public static final boolean ENABLE_COPILOT = true;
 
     static {
         List<String> hosts = new ArrayList<String>();
@@ -93,6 +109,9 @@ public final class GitHubAllowlist {
         }
         if (ENABLE_CAPTCHA_WIDGETS) {
             groups.add(captchaEntries());
+        }
+        if (ENABLE_COPILOT) {
+            groups.add(copilotEntries());
         }
         entries.addAll(merge(groups));
         return Collections.unmodifiableList(entries);
@@ -247,6 +266,42 @@ public final class GitHubAllowlist {
     }
 
     /**
+     * GitHub Copilot service hosts, exactly as github.com names them in its Content-Security-Policy
+     * (connect-src and img-src, observed 2026-11-14). Requests only: Copilot is used from github.com
+     * pages, and none of these hosts may ever become the visible document.
+     *
+     * <p>Which API host a session uses depends on the account's Copilot plan (individual, business
+     * or enterprise), so all three are listed; listing fewer would make Copilot work for some
+     * accounts and fail silently for others. {@code copilot-workspace.githubnext.com} is deliberately
+     * <em>not</em> here: it is a separate website (a form target), not a service of github.com pages.
+     * The regional real-time hosts are a pattern, see {@link #resourceHostPatterns()}.</p>
+     */
+    public static List<AllowEntry> copilotEntries() {
+        List<AllowEntry> entries = new ArrayList<AllowEntry>();
+        entries.add(AllowEntry.resourceOnly("api.githubcopilot.com", Collections.<String>emptyList(),
+                "GitHub Copilot API called by Copilot on github.com pages; requests only, never a page."));
+        entries.add(AllowEntry.resourceOnly("api.individual.githubcopilot.com", Collections.<String>emptyList(),
+                "GitHub Copilot API for individual plans (chat threads, messages, models); requests only."));
+        entries.add(AllowEntry.resourceOnly("api.business.githubcopilot.com", Collections.<String>emptyList(),
+                "GitHub Copilot API for Copilot Business accounts; requests only."));
+        entries.add(AllowEntry.resourceOnly("api.enterprise.githubcopilot.com", Collections.<String>emptyList(),
+                "GitHub Copilot API for Copilot Enterprise accounts; requests only."));
+        entries.add(AllowEntry.resourceOnly("proxy.individual.githubcopilot.com", Collections.<String>emptyList(),
+                "GitHub Copilot completions proxy for individual plans; requests only."));
+        entries.add(AllowEntry.resourceOnly("proxy.business.githubcopilot.com", Collections.<String>emptyList(),
+                "GitHub Copilot completions proxy for Copilot Business accounts; requests only."));
+        entries.add(AllowEntry.resourceOnly("proxy.enterprise.githubcopilot.com", Collections.<String>emptyList(),
+                "GitHub Copilot completions proxy for Copilot Enterprise accounts; requests only."));
+        entries.add(AllowEntry.resourceOnly("copilot-proxy.githubusercontent.com", Collections.<String>emptyList(),
+                "GitHub Copilot proxy named by the site CSP; requests only."));
+        entries.add(AllowEntry.resourceOnly("copilotprodattachments.blob.core.windows.net",
+                paths("/github-production-copilot-attachments/"),
+                "Images attached to Copilot chats, restricted to the one container the site CSP names; "
+                        + "not a blanket Azure storage rule."));
+        return Collections.unmodifiableList(entries);
+    }
+
+    /**
      * Every non-PRODUCT host (including GitHub-owned ASSET hosts), in policy order. Pinned by
      * {@code AllowlistRegressionTest}: this list is the app's whole third-party surface.
      */
@@ -274,42 +329,71 @@ public final class GitHubAllowlist {
     }
 
     /**
-     * The one host pattern in this build: GitHub Actions results/log storage accounts.
+     * The host patterns in this build. There are exactly two, both resource-only, both anchored to
+     * the complete hostname (see {@link HostPatternEntry#matchesHost(String)}):
      *
-     * <p>The complete hostname must be {@code productionresultssa} followed by one or more ASCII
-     * digits followed by {@code .blob.core.windows.net}. The match is anchored to the complete
-     * hostname (see {@link HostPatternEntry#matchesHost(String)}), so look-alikes such as
-     * {@code productionresultssa30.blob.core.windows.net.evil.example},
-     * {@code evilproductionresultssa30.blob.core.windows.net},
-     * {@code productionresultssaX.blob.core.windows.net} and
-     * {@code unrelated.blob.core.windows.net} never match. Matching is case-insensitive because
-     * the policy canonicalizes hosts to lower case before lookup.</p>
+     * <ol>
+     *   <li><b>GitHub Actions results/log storage accounts.</b> The complete hostname must be
+     *       {@code productionresultssa} followed by one or more ASCII digits followed by
+     *       {@code .blob.core.windows.net}. Look-alikes such as
+     *       {@code productionresultssa30.blob.core.windows.net.evil.example},
+     *       {@code evilproductionresultssa30.blob.core.windows.net},
+     *       {@code productionresultssaX.blob.core.windows.net} and
+     *       {@code unrelated.blob.core.windows.net} never match.</li>
+     *   <li><b>GitHub Copilot real-time (WebSocket) hosts</b>, present only while
+     *       {@link #ENABLE_COPILOT} is on. The complete hostname must be
+     *       {@code production-copilot-host}, optionally followed by region labels that each start
+     *       with a hyphen and contain only ASCII letters and digits
+     *       ({@code -westus3}, {@code -centralus-02}), followed by {@code .webpubsub.azure.com}.
+     *       GitHub named one such host in October 2026 and seven in November 2026, so an
+     *       enumerated list would break Copilot in every newly added region. A region label cannot
+     *       contain a dot, so the match can never leave {@code webpubsub.azure.com}, and no other
+     *       Web PubSub resource name ({@code evil.webpubsub.azure.com},
+     *       {@code production-copilot-hostile.webpubsub.azure.com}) matches.</li>
+     * </ol>
      *
-     * <p>The pattern is resource-only: a matched host may serve sub-resources, embedded documents
-     * and downloads, and may be tunnelled to on port 443 through the egress guard, but it may
-     * never become the visible page. That separation is enforced by the document question in
-     * {@link UrlPolicy}, not by this list.</p>
+     * <p>Matching is case-insensitive because the policy canonicalizes hosts to lower case before
+     * lookup. A matched host may serve sub-resources, embedded documents and downloads, and may be
+     * tunnelled to on port 443 through the egress guard, but it may never become the visible page.
+     * That separation is enforced by the document question in {@link UrlPolicy}, not by this list.</p>
      */
     public static List<HostPatternEntry> resourceHostPatterns() {
         List<HostPatternEntry> patterns = new ArrayList<HostPatternEntry>();
-        patterns.add(HostPatternEntry.resourceOnly(
+        patterns.add(productionResultsPattern());
+        if (ENABLE_COPILOT) {
+            patterns.add(copilotRealtimePattern());
+        }
+        return Collections.unmodifiableList(patterns);
+    }
+
+    private static HostPatternEntry productionResultsPattern() {
+        return HostPatternEntry.resourceOnly(
                 "productionresultssa<digits>.blob.core.windows.net",
                 "productionresultssa[0-9]+\\.blob\\.core\\.windows\\.net",
                 Collections.<String>emptyList(),
                 "GitHub Actions results/log storage accounts (productionresultssaN.blob.core.windows.net); "
                         + "numeric endpoint varies and grows over time, so the host is matched by this exact "
-                        + "structure rather than an enumerated list; never a page."));
-        return Collections.unmodifiableList(patterns);
+                        + "structure rather than an enumerated list; never a page.");
     }
 
-    /** True when the canonical host is a GitHub Actions results storage host under the pattern above. */
+    private static HostPatternEntry copilotRealtimePattern() {
+        return HostPatternEntry.resourceOnly(
+                "production-copilot-host[-<region>].webpubsub.azure.com",
+                "production-copilot-host(?:-[a-z0-9]+)*\\.webpubsub\\.azure\\.com",
+                Collections.<String>emptyList(),
+                "GitHub Copilot real-time (WebSocket) hosts, one per Azure region "
+                        + "(production-copilot-host-westus3.webpubsub.azure.com); regions are added over "
+                        + "time, so the host is matched by this exact structure; never a page.");
+    }
+
+    /** True when the canonical host is a GitHub Actions results storage host under the first pattern above. */
     public static boolean isProductionResultsHost(String canonicalHost) {
-        for (HostPatternEntry pattern : resourceHostPatterns()) {
-            if (pattern.matchesHost(canonicalHost)) {
-                return true;
-            }
-        }
-        return false;
+        return productionResultsPattern().matchesHost(canonicalHost);
+    }
+
+    /** True when the canonical host is a GitHub Copilot real-time host under the second pattern above. */
+    public static boolean isCopilotRealtimeHost(String canonicalHost) {
+        return ENABLE_COPILOT && copilotRealtimePattern().matchesHost(canonicalHost);
     }
 
     /** Build the policy enforced by this build. */

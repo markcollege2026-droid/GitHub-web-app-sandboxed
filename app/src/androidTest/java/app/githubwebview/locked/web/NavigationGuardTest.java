@@ -159,6 +159,85 @@ public class NavigationGuardTest {
         assertEquals(2, host.metrics().count(PolicyMetrics.Counter.BLOCKED_REDIRECTS));
     }
 
+    private static final String FILE_LINK =
+            "https://codeload.github.com/markcollege2026-droid/GitHub-web-app-sandboxed/zip/refs/heads/main";
+
+    /** Puts a verified github.com page on screen without any network: the base URL is what getUrl() reports. */
+    private void showAVerifiedPage() throws Exception {
+        final String page = "https://github.com/markcollege2026-droid/GitHub-web-app-sandboxed";
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(() ->
+                webView.loadDataWithBaseURL(page, "<!doctype html><html><body>page</body></html>", "text/html", "utf-8", page));
+        final String[] current = new String[1];
+        for (int i = 0; i < 100 && !page.equals(current[0]); i++) {
+            Thread.sleep(100);
+            InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> current[0] = webView.getUrl());
+        }
+        assertEquals("the test page must be what the WebView reports", page, current[0]);
+    }
+
+    /** Refuses {@code refused} as a main-frame redirect, then delivers WebView's finished report for {@code reported}. */
+    private void refuseThenReport(final String refused, final String reported) {
+        // Nothing is asserted on the main thread: a failure there would take the whole run down.
+        final boolean[] refusedByClient = {true};
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(() -> {
+            if (refused != null) {
+                refusedByClient[0] = client.shouldOverrideUrlLoading(webView, FakeWebResourceRequest.redirect(refused));
+            }
+            client.onPageFinished(webView, reported);
+        });
+        assertTrue("the navigation must have been refused", refusedByClient[0]);
+    }
+
+    /**
+     * The blink behind "Save this file?": WebView reports a finished page for the file link this client
+     * has just refused. The verified page is still on screen, so it must not be reloaded.
+     */
+    @Test
+    public void aRefusedFileLinkDoesNotReloadThePageBehindTheSaveOffer() throws Exception {
+        showAVerifiedPage();
+        refuseThenReport(FILE_LINK, FILE_LINK);
+        assertEquals(FILE_LINK, host.lastBlockedNavigation);
+        assertNull("the page behind the offer must stay", host.lastRecoveryReason);
+        assertNull(host.lastVerifiedNavigation);
+    }
+
+    @Test
+    public void theReportIsCoveredOnce() throws Exception {
+        showAVerifiedPage();
+        refuseThenReport(FILE_LINK, FILE_LINK);
+        assertNull(host.lastRecoveryReason);
+        refuseThenReport(null, FILE_LINK);
+        assertEquals("onPageFinished:DOCUMENT_NOT_ALLOWED", host.lastRecoveryReason);
+    }
+
+    @Test
+    public void aResourceHostThatWasNeverRefusedStillRecovers() throws Exception {
+        showAVerifiedPage();
+        refuseThenReport(null, FILE_LINK);
+        assertEquals("onPageFinished:DOCUMENT_NOT_ALLOWED", host.lastRecoveryReason);
+    }
+
+    @Test
+    public void aRefusalCoversOnlyThatExactUrl() throws Exception {
+        showAVerifiedPage();
+        refuseThenReport(FILE_LINK, FILE_LINK + "-other");
+        assertEquals("onPageFinished:DOCUMENT_NOT_ALLOWED", host.lastRecoveryReason);
+    }
+
+    @Test
+    public void aRefusedThirdPartyStillRecovers() throws Exception {
+        showAVerifiedPage();
+        refuseThenReport("https://evil.example/file.zip", "https://evil.example/file.zip");
+        assertNotNull("an unlisted host is never excused", host.lastRecoveryReason);
+    }
+
+    @Test
+    public void aRefusedFileLinkStillRecoversWhenNoVerifiedPageIsOnScreen() {
+        // A WebView that has loaded nothing reports no page at all.
+        refuseThenReport(FILE_LINK, FILE_LINK);
+        assertEquals("onPageFinished:DOCUMENT_NOT_ALLOWED", host.lastRecoveryReason);
+    }
+
     @Test
     public void refusesCustomSchemes() {
         String[] schemes = {

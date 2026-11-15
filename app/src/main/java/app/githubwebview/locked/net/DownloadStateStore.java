@@ -24,6 +24,8 @@ public final class DownloadStateStore {
     private static final String K_MIME = "retry_mime";
     private static final String K_LENGTH = "retry_length";
     private static final String K_UPDATED = "updated_at";
+    // The updated_at of the newest finished status the user has already been shown.
+    private static final String K_ACKNOWLEDGED = "acknowledged_at";
 
     public static final class Snapshot {
         public final State state;
@@ -104,6 +106,23 @@ public final class DownloadStateStore {
         }
         e.apply();
         context.sendBroadcast(new Intent(ACTION_CHANGED).setPackage(context.getPackageName()));
+    }
+
+    /**
+     * The {@code updatedAt} of the newest finished status that was already shown to the user.
+     *
+     * <p>Persisted, not kept in an Activity field: every new Activity reads the stored status on
+     * start, and without this a "download failed" from days ago was presented again on each launch.</p>
+     */
+    public static long acknowledgedAt(Context context) {
+        return prefs(context).getLong(K_ACKNOWLEDGED, 0L);
+    }
+
+    /** Record that the status written at {@code updatedAt} has been shown. Never moves backwards. */
+    public static void acknowledge(Context context, long updatedAt) {
+        if (updatedAt > acknowledgedAt(context)) {
+            prefs(context).edit().putLong(K_ACKNOWLEDGED, updatedAt).apply();
+        }
     }
 
     /** Mark a process-lost transfer interrupted; stale storage remains invisible/partial and is cleaned. */

@@ -94,6 +94,7 @@ final class LivePageSupport {
     }
 
     static void tapElement(ActivityScenario<MainActivity> scenario, String expression) throws Exception {
+        closeForeignSystemDialogs();
         evaluate(scenario, "(function(){var e=" + expression
                 + ";if(e)e.scrollIntoView({block:'center'});return !!e;})()");
         Thread.sleep(350);
@@ -205,6 +206,53 @@ final class LivePageSupport {
         String size = shell("stat -c %s " + path).trim();
         assertTrue("screenshot must exist with PNG bytes, size=" + size,
                 size.matches("[0-9]+") && Long.parseLong(size) > 1000);
+    }
+
+    /**
+     * The window that currently receives touches, as the system reports it - for example this app's
+     * activity, or an emulator "System UI isn't responding" dialog. Diagnostic only.
+     */
+    static String currentFocusWindow() throws Exception {
+        for (String line : shell("dumpsys window").split("\n")) {
+            String trimmed = line.trim();
+            if (trimmed.startsWith("mCurrentFocus=")) return trimmed;
+        }
+        return "mCurrentFocus=unknown";
+    }
+
+    static boolean appWindowHasFocus(ActivityScenario<MainActivity> scenario) {
+        boolean[] focus = new boolean[1];
+        scenario.onActivity(a -> focus[0] = a.hasWindowFocus());
+        return focus[0];
+    }
+
+    /**
+     * A touch goes to whichever window is in front. On a slow CI emulator Android sometimes puts
+     * "Pixel Launcher isn't responding" over the app (seen in the screenshots of runs 43125836949
+     * and 43125854812): that dialog belongs to system_server, takes the window focus, and swallowed
+     * the tap that both input tests then reported as "tap must focus the real input".
+     *
+     * <p>Before a tap, close such a dialog. Only a window that is <em>not</em> this app is ever
+     * closed, and only through the system-dialog broadcast, which cannot close an app window - so a
+     * dialog or overlay of the app itself that blocked a tap would still fail the test.</p>
+     */
+    static void closeForeignSystemDialogs() throws Exception {
+        for (int attempt = 1; attempt <= 5; attempt++) {
+            String window = currentFocusWindow();
+            boolean named = window.contains("{") && !window.contains("mCurrentFocus=null");
+            if (!named || window.contains("app.githubwebview.locked/")) {
+                return;
+            }
+            android.util.Log.i("GitHubWebViewLocked", "input probe a foreign window is in front before a tap, "
+                    + "closing system dialogs (attempt " + attempt + "): " + window);
+            dismissSystemDialogs();
+            Thread.sleep(700);
+        }
+    }
+
+    /** Closes system dialogs (never an app window). Test instrumentation shell privilege only. */
+    static void dismissSystemDialogs() throws Exception {
+        shell("am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS");
     }
 
     static String shell(String command) throws Exception {

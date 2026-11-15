@@ -35,9 +35,6 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.EditText;
 import android.widget.FrameLayout;
-import android.widget.LinearLayout;
-import android.widget.ProgressBar;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import java.util.Locale;
@@ -52,6 +49,7 @@ import app.githubwebview.locked.policy.PolicyConfig;
 import app.githubwebview.locked.policy.PolicyMetrics;
 import app.githubwebview.locked.policy.PolicyResult;
 import app.githubwebview.locked.ui.AuthWindow;
+import app.githubwebview.locked.ui.DownloadStrip;
 import app.githubwebview.locked.ui.PullToRefreshFrame;
 import app.githubwebview.locked.ui.StatusOverlay;
 import app.githubwebview.locked.web.GitHubWebChromeClient;
@@ -150,14 +148,24 @@ public class MainActivity extends Activity implements GuardHost, FileDownloads.L
     /** The one downloader. Guarded by the same policy and the same loopback proxy as the WebView. */
     /** Activity-facing facade; it delegates accepted work to BackgroundDownloadService and owns no worker. */
     private FileDownloads downloads;
-    private AlertDialog downloadDialog;
-    private ProgressBar downloadProgressBar;
-    private TextView downloadProgressText;
+    /**
+     * The only in-app surface of a running transfer: a non-modal strip along the bottom edge. It
+     * never takes window focus, so the page stays usable, and nothing about it can cancel a
+     * transfer except its explicit Cancel button.
+     */
+    private DownloadStrip downloadStrip;
+    /** The user put the strip away for the transfer that is running now; reset when it ends. */
+    private boolean downloadStripHidden;
     private BroadcastReceiver downloadStateReceiver;
     private boolean downloadReceiverRegistered;
     private boolean pendingNotificationPermission;
     private PendingDownload pendingDownload;
-    private long lastRenderedDownloadUpdate;
+    /** The "Save this file?" question on screen, if any. There is never more than one. */
+    private AlertDialog saveOffer;
+    /** The file last answered with Save, and when: a late duplicate of that tap is not asked again. */
+    private String lastAcceptedOffer;
+    private long lastAcceptedOfferAt;
+    private static final long ACCEPTED_OFFER_ECHO_MS = 2_000L;
     private static final int REQUEST_POST_NOTIFICATIONS = 7431;
 
     private static final class PendingDownload {
@@ -209,6 +217,37 @@ public class MainActivity extends Activity implements GuardHost, FileDownloads.L
         root.addView(pullToRefresh, 0, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         attachPrimaryWebView();
+
+        // Above the page, below the status overlay and the sign-in window. Hidden until a transfer
+        // is running or has failed; see DownloadStrip for why this is not a dialog.
+        downloadStrip = new DownloadStrip(this, new DownloadStrip.Listener() {
+            @Override
+            public void onCancelRequested() {
+                cancelBackgroundDownload();
+            }
+
+            @Override
+            public void onRetryRequested() {
+                acknowledgeDownloadStatus();
+                retryLastDownload();
+            }
+
+            @Override
+            public void onHidden(boolean wasFailure) {
+                if (wasFailure) {
+                    acknowledgeDownloadStatus();
+                } else {
+                    downloadStripHidden = true;
+                    onMessage("Still downloading in the background. Progress and Cancel are in the notification.");
+                }
+            }
+        });
+        FrameLayout.LayoutParams stripParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+                android.view.Gravity.BOTTOM);
+        int stripMargin = (int) (8 * getResources().getDisplayMetrics().density);
+        stripParams.setMargins(stripMargin, stripMargin, stripMargin, stripMargin);
+        root.addView(downloadStrip, stripParams);
 
         overlay = new StatusOverlay(this, new StatusOverlay.Listener() {
             @Override
@@ -489,32 +528,44 @@ public class MainActivity extends Activity implements GuardHost, FileDownloads.L
             unregisterReceiver(downloadStateReceiver);
             downloadReceiverRegistered = false;
         }
-        dismissDownloadDialog();
         super.onStop();
     }
 
+    /**
+     * Render the service's persisted status. Called on every status broadcast and on every start.
+     *
+     * <p>Nothing here opens a dialog or takes focus: a running transfer is the strip, a finished one
+     * is a short message, a failed one is the strip with Retry. A status that was already shown is
+     * not shown again - the acknowledgement is persisted next to the status, because this method
+     * also runs in every newly created Activity and an in-memory marker made each cold start
+     * replay the last failure.</p>
+     */
     private void applyDownloadSnapshot(DownloadStateStore.Snapshot snapshot) {
         if (snapshot.state == DownloadStateStore.State.ACTIVE) {
             if (navigationTracker.activeDownloadCount() == 0) navigationTracker.onDownloadStarted();
-            if (downloadDialog == null) onDownloadStarted(snapshot.fileName, snapshot.totalBytes);
             onDownloadProgress(snapshot.fileName, snapshot.bytesRead, snapshot.totalBytes);
             return;
         }
+        downloadStripHidden = false;
+        if (downloadStrip != null && downloadStrip.isShowingProgress()) downloadStrip.hide();
         finishTrackedDownload();
-        if (snapshot.updatedAt <= lastRenderedDownloadUpdate) return;
-        lastRenderedDownloadUpdate = snapshot.updatedAt;
+        if (snapshot.updatedAt <= DownloadStateStore.acknowledgedAt(this)) return;
         switch (snapshot.state) {
             case COMPLETE:
+                DownloadStateStore.acknowledge(this, snapshot.updatedAt);
                 onDownloadSaved(snapshot.fileName, snapshot.location);
                 break;
             case CANCELLED:
+                DownloadStateStore.acknowledge(this, snapshot.updatedAt);
                 onDownloadCancelled(snapshot.fileName);
                 break;
             case REFUSED:
+                DownloadStateStore.acknowledge(this, snapshot.updatedAt);
                 onDownloadRefused(null, snapshot.host, snapshot.message);
                 break;
             case FAILED:
             case INTERRUPTED:
+                // Stays on the strip, with Retry, until the user retries or dismisses it.
                 showRetryableDownloadFailure(snapshot);
                 break;
             default:
@@ -530,19 +581,20 @@ public class MainActivity extends Activity implements GuardHost, FileDownloads.L
         }
     }
 
+    /** The user has seen (dismissed or retried) the current terminal status; never replay it. */
+    private void acknowledgeDownloadStatus() {
+        DownloadStateStore.acknowledge(this, DownloadStateStore.read(this).updatedAt);
+    }
+
     private void showRetryableDownloadFailure(DownloadStateStore.Snapshot snapshot) {
-        dismissDownloadDialog();
-        if (!canShowDialogs()) {
-            onMessage(snapshot.message);
+        if (downloadStrip == null || !canShowDialogs()) {
             return;
         }
-        new AlertDialog.Builder(this)
-                .setTitle(snapshot.state == DownloadStateStore.State.INTERRUPTED
-                        ? "Download interrupted" : "Download failed")
-                .setMessage(snapshot.message + "\n\nThe saved link will be revalidated before retrying.")
-                .setPositiveButton("Retry", (dialog, which) -> retryLastDownload())
-                .setNegativeButton(android.R.string.cancel, null)
-                .show();
+        String name = snapshot.fileName == null || snapshot.fileName.isEmpty() ? "" : ": " + snapshot.fileName;
+        downloadStrip.showFailure(
+                (snapshot.state == DownloadStateStore.State.INTERRUPTED
+                        ? "Download interrupted" : "Download failed") + name,
+                snapshot.message + " Nothing was saved. Retry checks the link again first.", true);
     }
 
     private void retryLastDownload() {
@@ -600,7 +652,14 @@ public class MainActivity extends Activity implements GuardHost, FileDownloads.L
     protected void onDestroy() {
         stopWatchdog();
         hideRefreshSpinner();
-        dismissDownloadDialog();
+        if (saveOffer != null) {
+            try {
+                saveOffer.dismiss();
+            } catch (Throwable ignored) {
+                // a dialog whose activity is already gone is not an error worth reporting
+            }
+            saveOffer = null;
+        }
         if (downloads != null) {
             downloads.shutdown();
         }
@@ -857,7 +916,8 @@ public class MainActivity extends Activity implements GuardHost, FileDownloads.L
     /** Start a user-requested transfer only when the foreground notification can be shown. */
     private boolean startBackgroundDownload(String url, String disposition, String mime, long length) {
         if (DownloadStateStore.read(this).state == DownloadStateStore.State.ACTIVE) {
-            onMessage("A download is already running. Cancel it before starting another.");
+            // One transfer at a time. The running one is not disturbed, and the page stays usable.
+            onMessage("A download is already running in the background. Start this one when it has finished.");
             return false;
         }
         if (Build.VERSION.SDK_INT >= 33
@@ -874,7 +934,12 @@ public class MainActivity extends Activity implements GuardHost, FileDownloads.L
             return false;
         }
         boolean started = BackgroundDownloadService.start(this, url, disposition, mime, length);
-        if (!started) onMessage("Background download service could not start; nothing was downloaded.");
+        if (started) {
+            downloadStripHidden = false;
+            onMessage("Downloading in the background. You can keep using GitHub.");
+        } else {
+            onMessage("Background download service could not start; nothing was downloaded.");
+        }
         return started;
     }
 
@@ -941,17 +1006,50 @@ public class MainActivity extends Activity implements GuardHost, FileDownloads.L
      */
     private void offerToSaveInstead(final String url, PolicyResult result) {
         String host = destinationHost(url, result);
-        new AlertDialog.Builder(this)
+        final String file = withoutQuery(url);
+        // Nothing shows for a moment after a download link is tapped, so it gets tapped again. Each
+        // tap is its own navigation and arrives here separately. One question is asked, once.
+        if (saveOffer != null && saveOffer.isShowing()) {
+            Log.i(TAG, "save offer already on screen, not stacking another: host=" + host);
+            return;
+        }
+        if (file.equals(lastAcceptedOffer)
+                && SystemClock.elapsedRealtime() - lastAcceptedOfferAt < ACCEPTED_OFFER_ECHO_MS) {
+            Log.i(TAG, "save offer for a file accepted a moment ago, not asking again: host=" + host);
+            return;
+        }
+        AlertDialog offer = new AlertDialog.Builder(this)
                 .setTitle("Save this file?")
                 .setMessage(host + " serves files for github.com pages, so this app cannot open it as a page.\n\n"
                         + "Save it to Downloads instead?")
                 .setPositiveButton("Save", (dialog, which) -> {
+                    lastAcceptedOffer = file;
+                    lastAcceptedOfferAt = SystemClock.elapsedRealtime();
                     if (downloads != null && downloads.download(url, null, null, -1L)) {
                         navigationTracker.onDownloadStarted();
                     }
                 })
                 .setNegativeButton(android.R.string.cancel, (dialog, which) -> onMessage("Nothing was saved"))
-                .show();
+                .setOnDismissListener(dialog -> {
+                    if (saveOffer == dialog) saveOffer = null;
+                })
+                .create();
+        // Save, Cancel or Back answer the question. A touch beside the box does not: by default it
+        // closes the box without a word, and the second tap on the link lands exactly there.
+        offer.setCanceledOnTouchOutside(false);
+        saveOffer = offer;
+        offer.show();
+    }
+
+    /** The address without its query: storage hosts sign every request, so the query differs each time. */
+    private static String withoutQuery(String url) {
+        if (url == null) return "";
+        int end = url.length();
+        int query = url.indexOf('?');
+        int fragment = url.indexOf('#');
+        if (query >= 0) end = Math.min(end, query);
+        if (fragment >= 0) end = Math.min(end, fragment);
+        return url.substring(0, end);
     }
 
     @Override
@@ -1222,44 +1320,22 @@ public class MainActivity extends Activity implements GuardHost, FileDownloads.L
     public void onDownloadStarted(String fileName, long totalBytes) {
         // The download was already recorded synchronously when the request was handed to the
         // downloader (GuardedDownloadListener / offerToSaveInstead), so the watchdog cannot tick
-        // in between. This callback only drives the progress dialog; it must not count again.
-        dismissDownloadDialog();
-        if (!canShowDialogs()) {
-            return;
-        }
-        int padding = (int) (20 * getResources().getDisplayMetrics().density);
-        LinearLayout content = new LinearLayout(this);
-        content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(padding, padding, padding, padding);
-        downloadProgressText = new TextView(this);
-        downloadProgressBar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
-        downloadProgressBar.setMax(100);
-        downloadProgressBar.setIndeterminate(totalBytes <= 0);
-        content.addView(downloadProgressText);
-        content.addView(downloadProgressBar);
-        downloadDialog = new AlertDialog.Builder(this)
-                .setTitle("Downloading")
-                .setView(content)
-                .setCancelable(true)
-                .setNegativeButton("Cancel", (dialog, which) -> cancelBackgroundDownload())
-                .setOnCancelListener(dialog -> cancelBackgroundDownload())
-                .create();
-        downloadDialog.show();
-        showDownloadProgress(fileName, 0L, totalBytes);
+        // in between. This callback only drives the progress strip; it must not count again.
+        onDownloadProgress(fileName, 0L, totalBytes);
     }
 
     @Override
     public void onDownloadProgress(String fileName, long bytesRead, long totalBytes) {
-        if (!canShowDialogs()) {
+        // Non-modal by design: the page behind the strip keeps window focus and stays usable.
+        if (downloadStrip == null || downloadStripHidden || !canShowDialogs()) {
             return;
         }
-        showDownloadProgress(fileName, bytesRead, totalBytes);
+        downloadStrip.showProgress(fileName, bytesRead, totalBytes);
     }
 
     @Override
     public void onDownloadSaved(String fileName, String location) {
         finishTrackedDownload();
-        dismissDownloadDialog();
         Log.i(TAG, "download saved: " + fileName + " in " + location);
         onMessage("Saved " + fileName + " to " + location);
     }
@@ -1267,69 +1343,20 @@ public class MainActivity extends Activity implements GuardHost, FileDownloads.L
     @Override
     public void onDownloadFailed(String fileName, String reason) {
         finishTrackedDownload();
-        dismissDownloadDialog();
         Log.w(TAG, "download failed: " + fileName + " (" + reason + ")");
-        if (!canShowDialogs()) {
+        if (downloadStrip == null || !canShowDialogs()) {
             return;
         }
-        new AlertDialog.Builder(this)
-                .setTitle("Download failed")
-                .setMessage(fileName + "\n\n" + reason + "\n\nNothing was saved.")
-                .setPositiveButton(android.R.string.ok, null)
-                .show();
+        // Reported where progress would have been, without interrupting the page. This path is a
+        // request that never reached the service (no guard, no notification permission), so there
+        // is no stored transfer to retry: the user taps the link again.
+        downloadStrip.showFailure("Download failed: " + fileName, reason + " Nothing was saved.", false);
     }
 
     @Override
     public void onDownloadCancelled(String fileName) {
         finishTrackedDownload();
-        dismissDownloadDialog();
         onMessage("Download cancelled: nothing was saved");
-    }
-
-    /** Progress on the dialog; indeterminate while the server has not said how large the file is. */
-    private void showDownloadProgress(String fileName, long bytesRead, long totalBytes) {
-        if (downloadProgressText == null && downloadDialog == null) {
-            return;
-        }
-        if (downloadProgressBar != null) {
-            if (totalBytes > 0) {
-                downloadProgressBar.setIndeterminate(false);
-                downloadProgressBar.setProgress((int) Math.min(100L, (bytesRead * 100L) / totalBytes));
-            } else {
-                downloadProgressBar.setIndeterminate(true);
-            }
-        }
-        if (downloadProgressText != null) {
-            StringBuilder text = new StringBuilder(fileName).append('\n').append(humanBytes(bytesRead));
-            if (totalBytes > 0) {
-                text.append(" of ").append(humanBytes(totalBytes));
-            }
-            downloadProgressText.setText(text.toString());
-        }
-    }
-
-    private void dismissDownloadDialog() {
-        if (downloadDialog != null) {
-            try {
-                downloadDialog.dismiss();
-            } catch (Throwable ignored) {
-                // a dialog whose activity is already gone is not an error worth reporting
-            }
-            downloadDialog = null;
-        }
-        downloadProgressBar = null;
-        downloadProgressText = null;
-    }
-
-    private static String humanBytes(long bytes) {
-        if (bytes < 1024L) {
-            return bytes + " B";
-        }
-        if (bytes < 1024L * 1024L) {
-            return (bytes / 1024L) + " KB";
-        }
-        long tenths = (bytes * 10L) / (1024L * 1024L);
-        return (tenths / 10L) + "." + (tenths % 10L) + " MB";
     }
 
     @Override

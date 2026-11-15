@@ -138,3 +138,64 @@ This editing sandbox cannot reach Android/Gradle artifact servers. Local checks 
 JavaScript/shell syntax, Git diffs, the complete upstream import comparison and preserved-core
 fingerprints. Compilation, JVM tests, APK signature/badging, installation and emulator tests actually
 ran in GitHub Actions. No historical Arena pass count is reused as GitHub verification.
+
+## 2026-11-14 re-check of the live site
+
+Later than the report above, which describes the first delivery. The live site was compared with the
+allow-list in GitHub Actions; no host needed to be added or removed.
+[Android CI run 43634780295](https://github.com/markcollege2026-droid/GitHub-web-app-sandboxed/actions/runs/43634780295)
+on `7338b0a54c16c977eefe034026a1c232b4011923` passed every job: **4,009 JVM cases passed, 0 failed**;
+**67 Android cases reported, 65 passed, 0 failed, 2 skipped** (the unavailable Google handoff and the
+fail-closed download case); the exact signed release APK installed and launched. Details, including
+the unexplained intermittent "tap must focus the real input" failure seen earlier on `main`, are in
+[docs/SITE-RECHECK-2026-11-14.md](docs/SITE-RECHECK-2026-11-14.md).
+
+## 2026-11-14: Copilot, background downloads without a dialog, emulator-dialog flake
+
+Source `9a02bfe`, Android CI run
+[43657945697](https://github.com/markcollege2026-droid/GitHub-web-app-sandboxed/actions/runs/43657945697):
+all jobs passed. JVM: 4015 tests, 4015 passed. Emulator (API 34, WebView 113): 69 tests, 67 passed,
+0 failed, 2 skipped (the same two as before). Release APK SHA-256
+`f113251f0411b64d5b040170722c3f7d856cbd10ba135a7d2bb01edeca55c357`, installed and launched on the
+emulator by the release-verification step. Site drift run 43657780301 passed with Copilot allowed.
+
+The first push of this change (run 43657780286) failed one JVM test,
+`everyThirdPartyAssetEntryIsResourceOnlyAndReviewableAtItsPathScope`: the eight Copilot API hosts were
+path-unrestricted without being listed as reviewed exceptions. They are now listed there deliberately;
+the attachment storage host stays pinned to its one container.
+
+What this run does and does not show:
+
+* **Downloads.** Two new device tests drive the status the service publishes and check that the page
+  keeps window focus while a transfer or a failure is shown, that Hide does not cancel, and that a
+  dismissed failure is not shown again by a new Activity. The existing tests still download and cancel
+  real files through the service. No test taps through GitHub pages by hand during a real transfer.
+* **Copilot.** Policy decisions only (requests and tunnels allowed, never a page, look-alikes refused).
+  Copilot needs a signed-in account, so no conversation was exercised.
+* **The earlier red runs** (43125836949, 43125854812). Their screenshots show the emulator's "Pixel
+  Launcher isn't responding" dialog in front of the app. The dialog appears only occasionally, so one
+  green run cannot prove the countermeasure; it was not reproduced on demand.
+
+## 2026-11-14: the save offer blinked and sometimes needed several taps
+
+Source `b442912`, Android CI run
+[43665261790](https://github.com/markcollege2026-droid/GitHub-web-app-sandboxed/actions/runs/43665261790):
+all jobs passed. JVM: 4016 tests, 4016 passed. Emulator (API 34, WebView 113): 77 tests, 75 passed,
+0 failed, 2 skipped (the same two as before). Release APK SHA-256
+`9a6a34a59606a454ebca54c5cd94de2dee0915417f0bcb8de4850d3dd44682f9`.
+
+`DownloadTapFlowTest` drives a download the way a person does: a real touch on a link in the
+repository page, a real touch on Save. It records every window of the app every 12 ms and merges
+the app's own log into the timeline (annotations "Download tap flow" on the run).
+
+| What was measured before the fix | Run | After the fix (43665261790) |
+|---|---|---|
+| The page behind "Save this file?" was reloaded 0.04 to 0.23 s after the dialog appeared, in 17 of 18 downloads (this branch and `main`'s build) | 43660097955, 43661161009, 43661983501, 43662888910 | Not reloaded in 8 of 8 |
+| Two taps on the link 0.2 s apart: two identical dialogs, the second 0.36 s after the first, each needing its own tap on Save | 43663437267 | One dialog, one tap; the log shows the second request arriving and being dropped |
+| One more tap on the link's spot 0.3 s after the dialog appeared: the dialog closed, nothing was saved, the link had to be tapped again | 43663437267 | The dialog stays |
+| One tap on the link, one tap on Save, also when Save is pressed 80 ms after the dialog appears | all | Unchanged: one tap |
+
+Limits: emulator only, signed out, files of 10 KB to 1 MB, one WebView version (113). The double-tap
+case depends on timing: in run 43664423999 the second tap produced no second request at all.
+`furtherRequestsDoNotStackOffersAndATouchBesideTheOfferDoesNotCloseIt` therefore delivers the
+requests directly and does not depend on timing. Nothing here was checked on a phone.
