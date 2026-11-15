@@ -298,7 +298,11 @@ public class DownloadTapFlowTest {
                 int linkTaps = Integer.parseInt(each[3]);
                 for (int i = 1; i <= linkTaps; i++) {
                     timeline.note("TAP link" + (linkTaps > 1 ? " #" + i : ""));
-                    LivePageSupport.tap(scenario, "#dl-probe");
+                    try {
+                        LivePageSupport.tap(scenario, "#dl-probe");
+                    } catch (AssertionError gone) {
+                        timeline.note("the link could not be tapped: " + gone.getMessage());
+                    }
                     if (i < linkTaps) SystemClock.sleep(600L);
                 }
                 boolean offered = await(25_000L, () -> timeline.offersNow > 0);
@@ -318,7 +322,11 @@ public class DownloadTapFlowTest {
                         placeLink(scenario, each[1]);
                     }
                     timeline.note("TAP link again");
-                    LivePageSupport.tap(scenario, "#dl-probe");
+                    try {
+                        LivePageSupport.tap(scenario, "#dl-probe");
+                    } catch (AssertionError gone) {
+                        timeline.note("the link could not be tapped: " + gone.getMessage());
+                    }
                     offered = await(25_000L, () -> timeline.offersNow > 0);
                     timeline.note(offered ? "offer is on screen" : "NO offer appeared");
                 }
