@@ -65,6 +65,13 @@ includes a live save: `FileDownloadTest` downloads a real file through the loopb
 `MediaStore` row and its size, then deletes it. Help and download refusals are still covered by
 `refusalsAreReportedAsRefusalsNotAsOutages`.
 
+[Run 43634780295](https://github.com/markcollege2026-droid/GitHub-web-app-sandboxed/actions/runs/43634780295)
+is the most recent build (2026-11-14, source `7338b0a`): **4,009 JVM cases (0 failed)**, emulator suite
+**65 passed, 0 failed, 2 skipped**, and the exact signed release APK installed and launched. Release
+SHA-256 `784b0657133aacef419c14f30b9ddea918ce4f46aa284aa410b0fd7107974019`. It was built after
+re-checking the live site; the allow-list did not need to change. See
+[docs/SITE-RECHECK-2026-11-14.md](docs/SITE-RECHECK-2026-11-14.md).
+
 See [TEST_REPORT.md](TEST_REPORT.md) for scope/earlier failures and [docs/EVIDENCE.md](docs/EVIDENCE.md)
 for actual results. The original Arena reports are archived under `docs/upstream-arena/`, not reused
 as evidence for this APK. [Exact changed files](docs/CHANGES.md) · [All domains/roles](docs/DOMAINS.md)
@@ -82,6 +89,24 @@ usually different signing keys: uninstall one before installing the other. Neith
 
 Android 7+ (minSdk 24), compile/target SDK 35, JDK 17. A WebView supporting AndroidX
 `PROXY_OVERRIDE` is required; otherwise the original error screen fails closed.
+
+## Is the host list still current?
+
+GitHub changes its site without notice. The **Site drift** workflow
+(`.github/workflows/site-drift.yml`) looks at the live, signed-out site and compares it with the
+allow-list the APK is built from:
+
+* it runs every Monday (from `main`, so only once this workflow is merged), whenever the allow-list
+  changes on a working branch, and on demand (Actions → *Site drift* → *Run workflow*);
+* it **fails** when github.com names or requests a host that is neither allowed nor a recorded refusal
+  in [docs/site-reviewed-exclusions.json](docs/site-reviewed-exclusions.json), so a new host is never
+  silently adopted and never silently ignored;
+* it never edits the allow-list. Allowing a host stays a reviewed change to `GitHubAllowlist.java`,
+  its pinning test and [docs/DOMAINS.md](docs/DOMAINS.md);
+* run by hand with *refresh* ticked on a branch, it commits the new snapshot and report itself.
+
+The latest result is [docs/SITE-DRIFT.md](docs/SITE-DRIFT.md). It is a signed-out observation: hosts
+used only when signed in, or only by a running job, cannot show up in it.
 
 ## Automatic AppLock enrollment exemption
 
@@ -142,8 +167,16 @@ are on the allow-list as **resources**, so the app can save their bytes - and no
 * Android 10+ saves into the system **Downloads** collection via `MediaStore` (no permission);
   Android 7-9 saves into the app's own external Downloads folder (`Android/data/app.githubwebview.locked/files/Downloads`, no permission either);
 * the file name is taken from `Content-Disposition`/the URL and sanitised (no directories, control
-  characters or reserved characters), the transfer is capped at **1 GiB**, progress is shown in-app with
-  a Cancel button, and a failed or cancelled transfer deletes its partial file.
+  characters or reserved characters), the transfer is capped at **1 GiB**, and a failed or cancelled
+  transfer deletes its partial file;
+* a download runs **entirely in the background**. The transfer belongs to a foreground service, not to
+  the screen: you keep browsing GitHub while it runs, and it continues if you leave the app. Progress
+  is a slim strip at the bottom of the page (**Hide** puts it away, **Cancel** stops the transfer) and
+  a notification with its own Cancel. Nothing opens a dialog: completion is a short message, and a
+  failure stays on the strip with **Retry** until you retry or dismiss it. Only the two Cancel buttons
+  stop a transfer - Back, tapping elsewhere and Hide do not;
+* one transfer runs at a time. Starting a second one while the first is running shows a short message
+  and leaves the first untouched.
 
 Refused by design: `blob:`/`data:` downloads (they would need a JavaScript bridge, which this project
 does not have), `http://`, any host not on the allow-list, and files over the cap. The app never opens
@@ -151,8 +184,18 @@ the saved file: it is yours to open.
 
 Native file pickers stay disabled. Raw/archive links to resource-only hosts are
 blocked as pages. Uploaded attachments, external images not served through approved proxies,
-third-party SSO, GitHub Pages, Gist, Codespaces, Copilot and arbitrary external sites are not made
-browsable. In-page repository browsing, editing, commits, issues, PRs and Actions depend on the real
+third-party SSO, GitHub Pages, Gist, Codespaces, Copilot Workspace and arbitrary external sites are
+not made browsable.
+
+**GitHub Copilot** (`github.com/copilot` and Copilot inside repository pages) is allowed since
+2026-11-14. Its pages are ordinary `github.com` pages; the service hosts they call - nine exact hosts
+and the regional `production-copilot-host[-<region>].webpubsub.azure.com` real-time hosts - are
+allow-listed as **resources only**, so none of them can become the page. One switch,
+`GitHubAllowlist.ENABLE_COPILOT`, removes all of it again. See
+[docs/DOMAINS.md](docs/DOMAINS.md#github-copilot). Copilot needs a signed-in account with Copilot
+access, so the automated tests prove the policy decisions for these hosts, not a live conversation.
+
+In-page repository browsing, editing, commits, issues, PRs and Actions depend on the real
 website and authentication; an allowlist is not proof these workflows have completed.
 
 The proxy checks tunnel **host and port**, not encrypted paths, SNI or WebSocket messages.

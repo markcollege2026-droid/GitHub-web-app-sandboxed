@@ -214,7 +214,8 @@ public final class BackgroundDownloadService extends Service implements FileDown
         PendingIntent content = PendingIntent.getActivity(this, 1, open, pendingFlags());
         builder.setSmallIcon(R.drawable.ic_launcher_foreground)
                 .setContentTitle(name == null || name.isEmpty() ? "Download" : name)
-                .setContentText(active ? "Downloading in the background" : notificationText())
+                .setContentText(active ? "Downloading in the background - you can keep using GitHub"
+                        : notificationText())
                 .setContentIntent(content)
                 .setOnlyAlertOnce(true)
                 .setOngoing(active)
@@ -248,7 +249,7 @@ public final class BackgroundDownloadService extends Service implements FileDown
             case COMPLETE: return "Download complete";
             case CANCELLED: return "Download cancelled; partial file removed";
             case REFUSED: return "Download refused by policy";
-            default: return "Download failed. Retry from the app.";
+            default: return "Download failed. Nothing was saved.";
         }
     }
 
