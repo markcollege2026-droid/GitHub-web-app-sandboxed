@@ -170,6 +170,14 @@ public class AllowlistRegressionTest {
         deliberatelyUnrestricted.remove("images.ctfassets.net");
         deliberatelyUnrestricted.remove("videos.ctfassets.net");
         deliberatelyUnrestricted.addAll(Arrays.asList("ssl.gstatic.com", "www.gstatic.com", "octocaptcha.com", "static.captcha-delivery.com", "ct.captcha-delivery.com"));
+        // GitHub Copilot (allowed 2026-11-14): the eight API/proxy hosts are GitHub-operated service
+        // endpoints whose routes are not published and differ per plan, so no prefix list can be
+        // reviewed against anything. The attachment storage account is NOT in this list: it is a
+        // shared-platform host and stays pinned to its one container.
+        List<String> copilotApis = new ArrayList<String>(EXPECTED_COPILOT_HOSTS);
+        copilotApis.remove("copilotprodattachments.blob.core.windows.net");
+        assertEquals(8, copilotApis.size());
+        deliberatelyUnrestricted.addAll(copilotApis);
         for (AllowEntry entry : GitHubAllowlist.activeEntries()) {
             if (entry.isProduct() || entry.isSignIn() || entry.isPathRestricted()) {
                 continue;
