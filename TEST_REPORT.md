@@ -190,7 +190,7 @@ the app's own log into the timeline (annotations "Download tap flow" on the run)
 
 | What was measured before the fix | Run | After the fix (43665261790) |
 |---|---|---|
-| The page behind "Save this file?" was reloaded 0.04 to 0.23 s after the dialog appeared, in 16 of 16 downloads (this branch and `main`'s build) | 43661161009, 43661983501, 43662888910 | Not reloaded in 8 of 8 |
+| The page behind "Save this file?" was reloaded 0.04 to 0.23 s after the dialog appeared, in 17 of 18 downloads (this branch and `main`'s build) | 43660097955, 43661161009, 43661983501, 43662888910 | Not reloaded in 8 of 8 |
 | Two taps on the link 0.2 s apart: two identical dialogs, the second 0.36 s after the first, each needing its own tap on Save | 43663437267 | One dialog, one tap; the log shows the second request arriving and being dropped |
 | One more tap on the link's spot 0.3 s after the dialog appeared: the dialog closed, nothing was saved, the link had to be tapped again | 43663437267 | The dialog stays |
 | One tap on the link, one tap on Save, also when Save is pressed 80 ms after the dialog appears | all | Unchanged: one tap |
