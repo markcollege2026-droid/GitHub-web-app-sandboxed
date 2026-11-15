@@ -153,31 +153,9 @@ public class EmailInputRegressionTest {
         });
         Thread.sleep(900);
         int before = LivePageSupport.height(scenario);
-        String fieldHasFocus = "document.activeElement===document.querySelector(" + JSONObject.quote(selector) + ")";
-        boolean tapFocused = false;
-        for (int attempt = 1; attempt <= 3; attempt++) {
-            LivePageSupport.tap(scenario, selector);
-            tapFocused = LivePageSupport.waitFor(scenario, fieldHasFocus, 8_000);
-            if (tapFocused) break;
-            // This assertion failed in two CI runs that passed on an identical commit, on the GitHub
-            // form and the Google form alike. Their screenshots show the cause: the emulator's
-            // "Pixel Launcher isn't responding" system dialog was in front and took the touch.
-            // LivePageSupport.tapElement now closes such a dialog before tapping; this records what
-            // was in front if a tap is still lost, so the next cause is read rather than guessed.
-            String window = LivePageSupport.currentFocusWindow();
-            boolean foreign = !window.contains("app.githubwebview.locked/");
-            Log.i(TAG, "input probe " + name + " tap " + attempt + " did not focus the field; focused window="
-                    + window + " appWindowHasFocus=" + LivePageSupport.appWindowHasFocus(scenario)
-                    + " foreignWindowInFront=" + foreign);
-            LivePageSupport.screenshot(name + "-tap-not-focused-" + attempt);
-            // Retry ONLY when a window that is not this app (an emulator "isn't responding" or other
-            // system dialog) took the touch. If the app's own window was in front and a real tap still
-            // did not focus the field, that is a genuine failure and must stay one.
-            if (!foreign) break;
-            LivePageSupport.dismissSystemDialogs();
-            Thread.sleep(1_500);
-        }
-        assertTrue("tap must focus the real input", tapFocused);
+        LivePageSupport.tap(scenario, selector);
+        assertTrue("tap must focus the real input", LivePageSupport.waitFor(scenario,
+                "document.activeElement===document.querySelector(" + JSONObject.quote(selector) + ")", 8_000));
         LivePageSupport.showKeyboard(scenario);
         long until = SystemClock.elapsedRealtime() + 20_000;
         while (SystemClock.elapsedRealtime() < until && (!LivePageSupport.keyboardVisible(scenario)

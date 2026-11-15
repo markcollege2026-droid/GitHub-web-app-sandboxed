@@ -107,8 +107,7 @@ public class ResourcePolicyTest {
         }
         for (String required : new String[]{
                 "github_webview", "status_overlay", "fullscreen_container",
-                "auth_window", "auth_window_card", "auth_window_content", "auth_window_close",
-                "download_strip", "download_strip_text", "download_strip_primary", "download_strip_secondary"}) {
+                "auth_window", "auth_window_card", "auth_window_content", "auth_window_close"}) {
             assertTrue("missing id: " + required + " (declared: " + declared + ")",
                     declared.contains(required));
         }

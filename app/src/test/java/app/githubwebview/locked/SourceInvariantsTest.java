@@ -339,55 +339,6 @@ public class SourceInvariantsTest {
     }
 
     /**
-     * A download runs in the background and must leave the page usable.
-     *
-     * <p>The first background-download build still showed a modal "Downloading" dialog for the whole
-     * transfer: the page behind it could not be touched, and dismissing the dialog (Back, or a tap
-     * beside it) cancelled the download. The transfer already belonged to the foreground service, so
-     * the dialog was the only thing in the way. Progress, completion and failure are now rendered
-     * without a window of their own - a strip that is a plain child view, plus the notification - and
-     * a status that was already shown is remembered on disk, so a later Activity does not replay it.</p>
-     */
-    @Test
-    public void aRunningDownloadNeverBlocksThePage() throws Exception {
-        String main = code("app/githubwebview/locked/MainActivity.java");
-        String strip = code("app/githubwebview/locked/ui/DownloadStrip.java");
-        String store = code("app/githubwebview/locked/net/DownloadStateStore.java");
-
-        assertFalse("no progress dialog may exist", main.contains("downloadDialog"));
-        assertFalse("nothing dismissible may cancel a transfer", main.contains("setOnCancelListener"));
-        assertFalse("the modal \"Downloading\" dialog must not come back", main.contains("setTitle(\"Downloading\")"));
-
-        // Every method that renders download status, from the first to the last, opens no dialog.
-        for (String[] range : new String[][]{
-                {"private void applyDownloadSnapshot(", "private void retryLastDownload("},
-                {"public void onDownloadStarted(String fileName, long totalBytes)",
-                        "public void onFileChooserBlocked()"}}) {
-            int from = main.indexOf(range[0]);
-            int to = main.indexOf(range[1]);
-            assertTrue(range[0] + " must exist before " + range[1], from >= 0 && to > from);
-            String body = main.substring(from, to);
-            assertFalse("download status must not open a dialog: " + range[0], body.contains("AlertDialog"));
-            assertFalse("download status must not open a dialog: " + range[0], body.contains(".show()"));
-        }
-        assertTrue("progress is rendered on the non-modal strip",
-                main.contains("downloadStrip.showProgress(fileName, bytesRead, totalBytes)"));
-        assertTrue("a failure keeps Retry reachable without a dialog", main.contains("downloadStrip.showFailure("));
-
-        assertTrue("the strip is a child view, not a window", strip.contains("extends LinearLayout"));
-        assertFalse(strip.contains("Dialog"));
-        assertFalse(strip.contains("PopupWindow"));
-        assertFalse("the strip must never take focus from the page",
-                strip.contains("setFocusable(true)") || strip.contains("requestFocus"));
-        assertTrue("only the explicit Cancel button stops a transfer",
-                count(strip, "listener.onCancelRequested()") == 1 && count(main, "cancelBackgroundDownload();") == 1);
-
-        assertTrue("a shown status is remembered on disk, not in an Activity field",
-                store.contains("acknowledged_at") && main.contains("DownloadStateStore.acknowledgedAt(this)"));
-        assertFalse(main.contains("lastRenderedDownloadUpdate"));
-    }
-
-    /**
      * Exactly two WebViews can exist, and both are accounted for:
      *
      * <ol>

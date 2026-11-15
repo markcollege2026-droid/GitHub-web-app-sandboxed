@@ -12,24 +12,6 @@ are pinned in `upstream-core-fingerprints.json#addedProductionFiles`. No new Act
 settings, approval flow, WebView implementation, input handler or proxy was introduced; downloads
 reuse the existing proxy rather than adding a network stack of their own.
 
-## Post-import review: background downloads without a dialog, Copilot, CI flake (2026-11-14)
-
-Requested: allow Copilot; find the fix for the failed run; make downloads completely background, because
-GitHub could not be used while a file downloaded.
-
-| File | Scope |
-|---|---|
-| `app/src/main/java/app/githubwebview/locked/ui/DownloadStrip.java` | **New (reviewed addition).** Non-modal strip at the bottom edge: progress with Hide / Cancel, or a failure with Dismiss / Retry. A plain child view; it never takes window focus and holds no download state. |
-| `app/src/main/java/app/githubwebview/locked/MainActivity.java` | **Recorded exception (extended).** The modal "Downloading" dialog is gone (it blocked the page for the whole transfer, and dismissing it cancelled the transfer); the two failure dialogs are gone. Progress and failure go to `DownloadStrip`, completion to a short message. Request path, permission gate, one-transfer rule and all policy decisions unchanged. |
-| `app/src/main/java/app/githubwebview/locked/net/DownloadStateStore.java` | Records which finished status was already shown (`acknowledged_at`), so a new Activity no longer replays an old failure. |
-| `app/src/main/java/app/githubwebview/locked/net/BackgroundDownloadService.java` | Notification text only. |
-| `app/src/main/java/app/githubwebview/locked/policy/GitHubAllowlist.java` | Configuration. `ENABLE_COPILOT`; nine exact resource-only Copilot hosts; a second anchored resource-only pattern for `production-copilot-host[-<region>].webpubsub.azure.com`. `copilot-workspace.githubnext.com` stays refused. |
-| `app/src/test/.../policy/AllowlistRegressionTest.java`, `PolicyCases.java` | Copilot hosts: allowed as requests and tunnels on 443, never as a page; look-alikes and other Web PubSub names refused. |
-| `app/src/test/.../SourceInvariantsTest.java` | `aRunningDownloadNeverBlocksThePage`: no progress dialog, nothing dismissible cancels, the strip is a child view. |
-| `app/src/androidTest/.../net/BackgroundDownloadServiceTest.java` | Two new device tests: the page keeps window focus while a transfer is shown and Hide does not cancel; a failure offers Retry without a dialog and is not replayed after Dismiss. |
-| `app/src/androidTest/.../LivePageSupport.java`, `.github/workflows/android.yml` | The failed runs 43125836949 / 43125854812: the emulator's "Pixel Launcher isn't responding" dialog took the test's tap. CI now turns such dialogs off before the tests, and a tap first closes a system dialog that is in front (never an app window). |
-| `docs/DOMAINS.md`, `docs/site-reviewed-exclusions.json`, `scripts/site-drift.py` | Copilot rows and totals (55 exact hosts, 2 patterns); the Copilot refusals removed from the reviewed-exclusion list. |
-
 ## Post-import review: downloads (2026-10-20)
 
 Requested: make downloads work. They do now, without weakening the rest of the wrapper.

@@ -8,8 +8,4 @@
     <item name="auth_window_card" type="id" />
     <item name="auth_window_content" type="id" />
     <item name="auth_window_close" type="id" />
-    <item name="download_strip" type="id" />
-    <item name="download_strip_text" type="id" />
-    <item name="download_strip_primary" type="id" />
-    <item name="download_strip_secondary" type="id" />
 </resources>
