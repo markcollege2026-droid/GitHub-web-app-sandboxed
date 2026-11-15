@@ -286,7 +286,7 @@ public class DownloadTapFlowTest {
             if (!after || line.contains("dialog probe")) continue;
             int at = line.indexOf("): ");
             String message = at < 0 ? line : line.substring(at + 3);
-            if (!message.matches(".*(recovery|load \\(|watchdog|refused document|download|not a navigation|saved|Blocked).*")) continue;
+            if (!message.matches(".*(recovery|load \\(|watchdog|refused document|download|not a navigation|saved|Blocked|save offer|file link).*")) continue;
             // "11-14 00:54:27.123 I/Tag(pid): msg" -> "54:27.123 msg"
             String time = line.length() > 18 ? line.substring(9, 18) : "";
             out.add(time + " APP " + (message.length() > 150 ? message.substring(0, 150) : message));

@@ -160,6 +160,12 @@ public class MainActivity extends Activity implements GuardHost, FileDownloads.L
     private boolean downloadReceiverRegistered;
     private boolean pendingNotificationPermission;
     private PendingDownload pendingDownload;
+    /** The "Save this file?" question on screen, if any. There is never more than one. */
+    private AlertDialog saveOffer;
+    /** The file last answered with Save, and when: a late duplicate of that tap is not asked again. */
+    private String lastAcceptedOffer;
+    private long lastAcceptedOfferAt;
+    private static final long ACCEPTED_OFFER_ECHO_MS = 2_000L;
     private static final int REQUEST_POST_NOTIFICATIONS = 7431;
 
     private static final class PendingDownload {
@@ -646,6 +652,14 @@ public class MainActivity extends Activity implements GuardHost, FileDownloads.L
     protected void onDestroy() {
         stopWatchdog();
         hideRefreshSpinner();
+        if (saveOffer != null) {
+            try {
+                saveOffer.dismiss();
+            } catch (Throwable ignored) {
+                // a dialog whose activity is already gone is not an error worth reporting
+            }
+            saveOffer = null;
+        }
         if (downloads != null) {
             downloads.shutdown();
         }
@@ -992,17 +1006,50 @@ public class MainActivity extends Activity implements GuardHost, FileDownloads.L
      */
     private void offerToSaveInstead(final String url, PolicyResult result) {
         String host = destinationHost(url, result);
-        new AlertDialog.Builder(this)
+        final String file = withoutQuery(url);
+        // Nothing shows for a moment after a download link is tapped, so it gets tapped again. Each
+        // tap is its own navigation and arrives here separately. One question is asked, once.
+        if (saveOffer != null && saveOffer.isShowing()) {
+            Log.i(TAG, "save offer already on screen, not stacking another: host=" + host);
+            return;
+        }
+        if (file.equals(lastAcceptedOffer)
+                && SystemClock.elapsedRealtime() - lastAcceptedOfferAt < ACCEPTED_OFFER_ECHO_MS) {
+            Log.i(TAG, "save offer for a file accepted a moment ago, not asking again: host=" + host);
+            return;
+        }
+        AlertDialog offer = new AlertDialog.Builder(this)
                 .setTitle("Save this file?")
                 .setMessage(host + " serves files for github.com pages, so this app cannot open it as a page.\n\n"
                         + "Save it to Downloads instead?")
                 .setPositiveButton("Save", (dialog, which) -> {
+                    lastAcceptedOffer = file;
+                    lastAcceptedOfferAt = SystemClock.elapsedRealtime();
                     if (downloads != null && downloads.download(url, null, null, -1L)) {
                         navigationTracker.onDownloadStarted();
                     }
                 })
                 .setNegativeButton(android.R.string.cancel, (dialog, which) -> onMessage("Nothing was saved"))
-                .show();
+                .setOnDismissListener(dialog -> {
+                    if (saveOffer == dialog) saveOffer = null;
+                })
+                .create();
+        // Save, Cancel or Back answer the question. A touch beside the box does not: by default it
+        // closes the box without a word, and the second tap on the link lands exactly there.
+        offer.setCanceledOnTouchOutside(false);
+        saveOffer = offer;
+        offer.show();
+    }
+
+    /** The address without its query: storage hosts sign every request, so the query differs each time. */
+    private static String withoutQuery(String url) {
+        if (url == null) return "";
+        int end = url.length();
+        int query = url.indexOf('?');
+        int fragment = url.indexOf('#');
+        if (query >= 0) end = Math.min(end, query);
+        if (fragment >= 0) end = Math.min(end, fragment);
+        return url.substring(0, end);
     }
 
     @Override

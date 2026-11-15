@@ -52,8 +52,8 @@
       "upstreamFileSha256": "32a625997c40054079b95a4d4533656d0edaecbe52d62e90570a18f08fbd2921",
       "adaptedCodeSha256": "f54811715ebe52aafae1b026872bc7a05fd2aa2ea8e10ebc67adffed2f8e350f",
       "reviewedException": {
-        "summary": "Tracks the last verified GitHub page and download lifecycle; watchdog/recovery preserve workflow context during resource-only artifact redirects and return to the last verified page for unauthorized navigation. Download progress and failure are shown on a non-modal strip, never a dialog.",
-        "rationale": "Fixes the reported Actions artifact download homepage reset at its navigation-state root. A resource-only host reached during an active download is not a page navigation; the watchdog suppresses recovery for that case and records no artifact host as a page. Actual unauthorized top-level navigation remains blocked and recovers to the last verified approved page. Download completion/failure/cancellation/refusal balances state. Signed URLs are not logged by recovery diagnostics. The allowlist remains narrow and resource-only; EgressGuard, per-hop validation, redirect and size protections are unchanged. This reviewed extension makes the Activity a client of a lifecycle-independent foreground service and renders persisted download status without owning or cancelling the service worker on Activity destruction. 2026-11-14: download status is rendered without a window of its own. The modal \"Downloading\" dialog, which made the page unusable for the whole transfer and cancelled the transfer when dismissed, is replaced by the non-modal DownloadStrip child view plus the existing notification; a failure is shown on the same strip with Retry instead of a dialog; and the 'already shown' marker moved from an Activity field to DownloadStateStore so a newly created Activity no longer replays the last terminal status. Presentation only: the request path (DownloadPlan, the notification-permission gate, BackgroundDownloadService, EgressGuard), the one-transfer-at-a-time rule and every policy decision are unchanged.",
+        "summary": "Tracks the last verified GitHub page and download lifecycle; watchdog/recovery preserve workflow context during resource-only artifact redirects and return to the last verified page for unauthorized navigation. Download progress and failure are shown on a non-modal strip, never a dialog. The save offer is asked once: never stacked, and not closed by a touch beside it.",
+        "rationale": "Fixes the reported Actions artifact download homepage reset at its navigation-state root. A resource-only host reached during an active download is not a page navigation; the watchdog suppresses recovery for that case and records no artifact host as a page. Actual unauthorized top-level navigation remains blocked and recovers to the last verified approved page. Download completion/failure/cancellation/refusal balances state. Signed URLs are not logged by recovery diagnostics. The allowlist remains narrow and resource-only; EgressGuard, per-hop validation, redirect and size protections are unchanged. This reviewed extension makes the Activity a client of a lifecycle-independent foreground service and renders persisted download status without owning or cancelling the service worker on Activity destruction. 2026-11-14: download status is rendered without a window of its own. The modal \"Downloading\" dialog, which made the page unusable for the whole transfer and cancelled the transfer when dismissed, is replaced by the non-modal DownloadStrip child view plus the existing notification; a failure is shown on the same strip with Retry instead of a dialog; and the 'already shown' marker moved from an Activity field to DownloadStateStore so a newly created Activity no longer replays the last terminal status. Presentation only: the request path (DownloadPlan, the notification-permission gate, BackgroundDownloadService, EgressGuard), the one-transfer-at-a-time rule and every policy decision are unchanged. Save offer, 2026-11-14: measured on the emulator, two taps on a download link 0.2 s apart produced two stacked 'Save this file?' dialogs that each needed their own tap, and a tap beside the dialog closed it without saving anything. offerToSaveInstead now keeps a reference to the dialog on screen and does not open a second one, does not ask again for a file accepted in the last two seconds, and sets setCanceledOnTouchOutside(false). Save, Cancel and Back are unchanged; no request path or policy decision is touched.",
         "requiredTokens": [
           "verdict",
           "FileDownloads",
@@ -86,7 +86,10 @@
           "showProgress",
           "showFailure",
           "acknowledgeDownloadStatus",
-          "acknowledgedAt"
+          "acknowledgedAt",
+          "saveOffer",
+          "setCanceledOnTouchOutside",
+          "isShowing"
         ],
         "forbiddenTokens": [
           "\"Downloads are disabled in this app\"",
@@ -96,7 +99,7 @@
           "\"Downloading\"",
           "lastRenderedDownloadUpdate"
         ],
-        "adaptedCodeSha256": "3fd2f68bf8016128cd7c4dcce33a5513133b636a6575adfa806ced6d28a98a5d"
+        "adaptedCodeSha256": "d45151af362019fb0a7bb822cf36d574cdf11987a10658398fe1867545461152"
       }
     },
     "app/src/main/java/app/githubwebview/locked/net/EgressProxy.java": {

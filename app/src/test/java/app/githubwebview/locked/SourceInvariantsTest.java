@@ -339,6 +339,32 @@ public class SourceInvariantsTest {
     }
 
     /**
+     * "Save this file?" is asked once per download. Measured on a device: a second tap on the link put
+     * a second, identical dialog on top of the first (each needed its own tap), and a tap beside the
+     * dialog closed it without saving. Neither may come back.
+     */
+    @Test
+    public void theSaveOfferIsAskedOnceAndIsNotClosedByAStrayTouch() throws Exception {
+        String main = code("app/githubwebview/locked/MainActivity.java");
+        int from = main.indexOf("private void offerToSaveInstead(");
+        int to = main.indexOf("private static String withoutQuery(");
+        assertTrue("offerToSaveInstead must exist", from >= 0 && to > from);
+        String body = main.substring(from, to);
+        int guard = body.indexOf("saveOffer != null && saveOffer.isShowing()");
+        int built = body.indexOf("new AlertDialog.Builder(");
+        assertTrue("an offer on screen must be checked before another is built", guard >= 0 && built > guard);
+        assertTrue("a touch beside the offer must not close it", body.contains("setCanceledOnTouchOutside(false)"));
+        assertEquals("the offer is shown in exactly one place", 1, count(body, ".show()"));
+        assertTrue("Cancel still says that nothing was saved", body.contains("\"Nothing was saved\""));
+
+        String client = code("app/githubwebview/locked/web/GitHubWebViewClient.java");
+        assertTrue("the page behind the offer is not reloaded for the refused file link",
+                client.contains("isRefusedFileNavigation(view, url, where)"));
+        assertTrue("and only while the WebView still reports a verified page",
+                client.contains("host.policy().evaluateNavigation(onScreen).isAllowed()"));
+    }
+
+    /**
      * A download runs in the background and must leave the page usable.
      *
      * <p>The first background-download build still showed a modal "Downloading" dialog for the whole
