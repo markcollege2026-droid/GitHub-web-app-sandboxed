@@ -12,6 +12,20 @@ are pinned in `upstream-core-fingerprints.json#addedProductionFiles`. No new Act
 settings, approval flow, WebView implementation, input handler or proxy was introduced; downloads
 reuse the existing proxy rather than adding a network stack of their own.
 
+## Post-import review: the save offer blinked and needed several taps (2026-11-14)
+
+Reported: since background downloads, the dialog box blinks and sometimes needs several taps.
+Measurements are in [TEST_REPORT.md](../TEST_REPORT.md).
+
+| File | Scope |
+|---|---|
+| `app/src/main/java/app/githubwebview/locked/web/GitHubWebViewClient.java` | **Recorded exception (extended).** WebView reports `onPageFinished` for a redirect that `shouldOverrideUrlLoading` has just refused. For a file on a resource-only host that report reloaded the page behind "Save this file?". It is now ignored only when it names exactly the refused URL, arrives within five seconds, and the WebView still reports a verified page. Every other case recovers as before. |
+| `app/src/main/java/app/githubwebview/locked/MainActivity.java` | **Recorded exception (extended).** `offerToSaveInstead` shows one offer at a time, does not ask again for a file accepted in the last two seconds, and no longer closes on a touch beside the dialog. Save, Cancel and Back are unchanged. |
+| `app/src/androidTest/.../DownloadTapFlowTest.java` | **New.** Real touches on a link and on Save; every window recorded; eight live cases and one case without the network. |
+| `app/src/androidTest/.../web/NavigationGuardTest.java` | Six cases for the refused-file-link report: ignored once for the exact URL with a verified page on screen; recovery for any other URL, a third party, a repeated report, or no verified page. |
+| `app/src/test/.../SourceInvariantsTest.java` | `theSaveOfferIsAskedOnceAndIsNotClosedByAStrayTouch`. |
+| `.github/workflows/android.yml` | Publishes the tap-flow timelines as annotations. |
+
 ## Post-import review: background downloads without a dialog, Copilot, CI flake (2026-11-14)
 
 Requested: allow Copilot; find the fix for the failed run; make downloads completely background, because

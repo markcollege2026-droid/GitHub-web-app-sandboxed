@@ -175,3 +175,27 @@ What this run does and does not show:
 * **The earlier red runs** (43125836949, 43125854812). Their screenshots show the emulator's "Pixel
   Launcher isn't responding" dialog in front of the app. The dialog appears only occasionally, so one
   green run cannot prove the countermeasure; it was not reproduced on demand.
+
+## 2026-11-14: the save offer blinked and sometimes needed several taps
+
+Source `b442912`, Android CI run
+[43665261790](https://github.com/markcollege2026-droid/GitHub-web-app-sandboxed/actions/runs/43665261790):
+all jobs passed. JVM: 4016 tests, 4016 passed. Emulator (API 34, WebView 113): 77 tests, 75 passed,
+0 failed, 2 skipped (the same two as before). Release APK SHA-256
+`9a6a34a59606a454ebca54c5cd94de2dee0915417f0bcb8de4850d3dd44682f9`.
+
+`DownloadTapFlowTest` drives a download the way a person does: a real touch on a link in the
+repository page, a real touch on Save. It records every window of the app every 12 ms and merges
+the app's own log into the timeline (annotations "Download tap flow" on the run).
+
+| What was measured before the fix | Run | After the fix (43665261790) |
+|---|---|---|
+| The page behind "Save this file?" was reloaded 0.04 to 0.23 s after the dialog appeared, in 16 of 16 downloads (this branch and `main`'s build) | 43661161009, 43661983501, 43662888910 | Not reloaded in 8 of 8 |
+| Two taps on the link 0.2 s apart: two identical dialogs, the second 0.36 s after the first, each needing its own tap on Save | 43663437267 | One dialog, one tap; the log shows the second request arriving and being dropped |
+| One more tap on the link's spot 0.3 s after the dialog appeared: the dialog closed, nothing was saved, the link had to be tapped again | 43663437267 | The dialog stays |
+| One tap on the link, one tap on Save, also when Save is pressed 80 ms after the dialog appears | all | Unchanged: one tap |
+
+Limits: emulator only, signed out, files of 10 KB to 1 MB, one WebView version (113). The double-tap
+case depends on timing: in run 43664423999 the second tap produced no second request at all.
+`furtherRequestsDoNotStackOffersAndATouchBesideTheOfferDoesNotCloseIt` therefore delivers the
+requests directly and does not depend on timing. Nothing here was checked on a phone.
