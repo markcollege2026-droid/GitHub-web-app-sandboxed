@@ -1,0 +1,128 @@
+10372 ./app/build/outputs/androidTest-results/connected/debug/TEST-emulator-5554 - 14-_app-.xml
+6444 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/aapt.1.ok.txt
+1287 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/aapt.2.ok.txt
+1663 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/cpuinfo
+115 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/device-info.pb
+1018 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.AppSurfaceTest-theAppExposesNothingButItsLauncherActivity.txt
+183213 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.AuthWindowTest-backClosesTheSignInWindowBeforeAnythingElse.txt
+440140 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.AuthWindowTest-noSignInWindowIsOpenAfterStartup.txt
+190951 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.AuthWindowTest-repeatedRequestsReuseTheSameWindow.txt
+77382 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.AuthWindowTest-signInWindowHostsTheWebViewAndCanBeClosed.txt
+384 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.AuthWindowTest-signInWindowsAreReportedInTheDiagnostics.txt
+100464 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.BackNavigationTest-backNeverLeavesTheApp.txt
+92244 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.BackNavigationTest-legacyBackCallbackIsAlsoSafe.txt
+177314 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.EgressGuardTest-aWebSocketToAForeignHostIsRefusedByTheProxy.txt
+64197 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.EgressGuardTest-everyWebViewInTheProcessIsRouted.txt
+108337 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.EgressGuardTest-theGuardIsReadyBeforeAnythingLoadsAndRefusesForeignTunnels.txt
+512942 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.EmailInputRegressionTest-githubEmailEntryEditingKeyboardResizeAndClientValidation.txt
+461031 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.EmailInputRegressionTest-googleIdentifierInputAndValidationOnlyWhenProviderServesTheForm.txt
+5898 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.EscapeAttemptTest-fileChooserIsRefused.txt
+858 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.EscapeAttemptTest-geolocationIsRefused.txt
+25899 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.EscapeAttemptTest-incomingIntentsCannotSteerTheApp.txt
+83748 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.EscapeAttemptTest-startActivityIsRefused.txt
+1044658 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.GoogleSignInLiveTest-googleSignInPageIsReachableAndNothingItNeedsIsRefused.txt
+359446 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.GoogleSignInLiveTest-reportWhichCaptchaTheSiteReferences.txt
+164250 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.LiveGitHubSmokeTest-loadsTheRealSiteAndRunsItsJavaScript.txt
+63501 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.LiveGitHubWorkflowTest-editingAndWorkflowEditingAreAllowedRoutesButRemainAuthenticationGated.txt
+601272 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.LiveGitHubWorkflowTest-publicRepositoryFileCommitIssuePullRequestAndActionsPagesRender.txt
+37669 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.WatchdogRecoveryTest-internalLoadsAreCheckedAgain.txt
+50996 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.WatchdogRecoveryTest-thirdPartyLoadIsRefusedAndNeverShown.txt
+317 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.WebViewSettingsTest-cookiesAreEnabledIncludingThirdPartyOnesForTheAuthService.txt
+273 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.WebViewSettingsTest-featuresRequiredByTheSiteAreEnabled.txt
+263 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.WebViewSettingsTest-localFileAndContentAccessIsOff.txt
+19062 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.WebViewSettingsTest-safeBrowsingIsOn.txt
+291 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.WebViewSettingsTest-userAgentPreservesThePlatformWebViewIdentity.txt
+83093 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.net.BackgroundDownloadServiceTest-inAppCancellationSignalsTheService.txt
+50747 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.net.BackgroundDownloadServiceTest-notificationCancelActionStopsTheTransfer.txt
+341 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.net.BackgroundDownloadServiceTest-processLossIsReportedAsInterruptedAndRetryIsRevalidated.txt
+118111 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.net.BackgroundDownloadServiceTest-transferCompletesAfterActivityIsDestroyedAndStatusSurvivesRecreation.txt
+51243 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.net.FileDownloadTest-approvedFileIsSavedIntoTheDownloadsCollection.txt
+4874 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.web.DownloadGuardTest-anApprovedLinkFailsClosedWhenTheGuardIsNotRunning.txt
+2526 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.web.DownloadGuardTest-everyUnapprovedLinkIsRefusedBeforeAnyNetwork.txt
+325 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.web.GitHubResourceRolesTest-githubAndWidgetResourcesCannotBecomePopupDestinations.txt
+21479 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.web.GitHubResourceRolesTest-githubServiceResourcesAndFramesAreAllowedButNavigationAndRedirectsAreNot.txt
+291 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.web.NavigationGuardTest-allowsPostNavigationsWithoutTouchingThem.txt
+249 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.web.NavigationGuardTest-allowsTheSiteItself.txt
+293 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.web.NavigationGuardTest-allowsWidgetIframesThatAPageNeedsToRender.txt
+261 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.web.NavigationGuardTest-dataUrlsAreNeverDocuments.txt
+426 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.web.NavigationGuardTest-everyRefusalIsNamedInTheLogWithHostAndPathOnly.txt
+269 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.web.NavigationGuardTest-failsClosedOnUnusableRequests.txt
+361 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.web.NavigationGuardTest-refusesCleartextHttp.txt
+251 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.web.NavigationGuardTest-refusesCustomSchemes.txt
+269 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.web.NavigationGuardTest-refusesIframesToUnlistedHosts.txt
+253 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.web.NavigationGuardTest-refusesLookAlikeHosts.txt
+390 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.web.NavigationGuardTest-refusesRedirectsToThirdParties.txt
+259 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.web.NavigationGuardTest-refusesThirdPartyIframes.txt
+265 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.web.NavigationGuardTest-refusesThirdPartyNavigation.txt
+433 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.web.NavigationGuardTest-refusesThirdPartySubresourcesWithoutSendingThem.txt
+295 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.web.NavigationGuardTest-refusesToNavigateTheAppItselfToAWidgetHost.txt
+303 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.web.PopupBlockingTest-aGoogleAssetHostMayNeverBecomeTheVisibleDocument.txt
+327 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.web.PopupBlockingTest-aPromotedSignInWindowStillRefusesEverythingOutsideTheHandOff.txt
+315 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.web.PopupBlockingTest-aRefusedFrameInsideTheSignInWindowDoesNotEndTheHandOff.txt
+255 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.web.PopupBlockingTest-blankPopupIsNotNavigated.txt
+251 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.web.PopupBlockingTest-dialogPopupsAreRefused.txt
+299 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.web.PopupBlockingTest-embeddedFramesInsideTheSignInWindowLoadInPlace.txt
+309 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.web.PopupBlockingTest-finishedWindowsDoNotPileUpAgainstTheOpenWindowLimit.txt
+277 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.web.PopupBlockingTest-hiddenWindowsAreReleasedImmediately.txt
+281 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.web.PopupBlockingTest-onCreateWindowHandsOverAHiddenWebView.txt
+281 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.web.PopupBlockingTest-popupToASignInHostIsKeptAndShownInApp.txt
+295 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.web.PopupBlockingTest-popupToTheSiteIsReroutedIntoTheSingleWebView.txt
+419 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.web.PopupBlockingTest-popupToThirdPartyIsRefusedAndNeverAttached.txt
+273 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.web.PopupBlockingTest-thePageCanCloseItsOwnSignInWindow.txt
+301 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/logcat-app.githubwebview.locked.web.PopupBlockingTest-theReturnHopBackToTheSiteStaysInTheSignInWindow.txt
+1291 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/meminfo
+32 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/profiling/emulator-5554_profile.pb
+76604 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/test-result.pb
+119140 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/test-result.textproto
+52898 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/testlog/test-results.log
+21396 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/utp.0.log
+0 ./app/build/outputs/androidTest-results/connected/debug/emulator-5554 - 14/utp.0.log.lck
+76606 ./app/build/outputs/androidTest-results/connected/debug/test-result.pb
+1785 ./app/build/reports/androidTests/connected/debug/app.githubwebview.locked.AppSurfaceTest.html
+2184 ./app/build/reports/androidTests/connected/debug/app.githubwebview.locked.AuthWindowTest.html
+1866 ./app/build/reports/androidTests/connected/debug/app.githubwebview.locked.BackNavigationTest.html
+2004 ./app/build/reports/androidTests/connected/debug/app.githubwebview.locked.EgressGuardTest.html
+2670 ./app/build/reports/androidTests/connected/debug/app.githubwebview.locked.EmailInputRegressionTest.html
+2032 ./app/build/reports/androidTests/connected/debug/app.githubwebview.locked.EscapeAttemptTest.html
+2615 ./app/build/reports/androidTests/connected/debug/app.githubwebview.locked.GoogleSignInLiveTest.html
+1794 ./app/build/reports/androidTests/connected/debug/app.githubwebview.locked.LiveGitHubSmokeTest.html
+1963 ./app/build/reports/androidTests/connected/debug/app.githubwebview.locked.LiveGitHubWorkflowTest.html
+1887 ./app/build/reports/androidTests/connected/debug/app.githubwebview.locked.WatchdogRecoveryTest.html
+2188 ./app/build/reports/androidTests/connected/debug/app.githubwebview.locked.WebViewSettingsTest.html
+4738 ./app/build/reports/androidTests/connected/debug/app.githubwebview.locked.html
+2188 ./app/build/reports/androidTests/connected/debug/app.githubwebview.locked.net.BackgroundDownloadServiceTest.html
+1810 ./app/build/reports/androidTests/connected/debug/app.githubwebview.locked.net.FileDownloadTest.html
+2097 ./app/build/reports/androidTests/connected/debug/app.githubwebview.locked.net.html
+1919 ./app/build/reports/androidTests/connected/debug/app.githubwebview.locked.web.DownloadGuardTest.html
+1973 ./app/build/reports/androidTests/connected/debug/app.githubwebview.locked.web.GitHubResourceRolesTest.html
+3091 ./app/build/reports/androidTests/connected/debug/app.githubwebview.locked.web.NavigationGuardTest.html
+3143 ./app/build/reports/androidTests/connected/debug/app.githubwebview.locked.web.PopupBlockingTest.html
+2494 ./app/build/reports/androidTests/connected/debug/app.githubwebview.locked.web.html
+2428 ./app/build/reports/androidTests/connected/debug/css/base-style.css
+1798 ./app/build/reports/androidTests/connected/debug/css/style.css
+7075 ./app/build/reports/androidTests/connected/debug/index.html
+2933 ./app/build/reports/androidTests/connected/debug/js/report.js
+3 ./docs/evidence/android-version.txt
+76262 ./docs/evidence/app-screenshot.png
+29108 ./docs/evidence/device-activities.txt
+413255 ./docs/evidence/device-logcat.txt
+227825 ./docs/evidence/github-wrapper-evidence/github-actions.png
+207452 ./docs/evidence/github-wrapper-evidence/github-commits.png
+169066 ./docs/evidence/github-wrapper-evidence/github-completed-job.png
+239905 ./docs/evidence/github-wrapper-evidence/github-file.png
+114604 ./docs/evidence/github-wrapper-evidence/github-google-option-unavailable.png
+75708 ./docs/evidence/github-wrapper-evidence/github-homepage.png
+126867 ./docs/evidence/github-wrapper-evidence/github-issues.png
+114604 ./docs/evidence/github-wrapper-evidence/github-login-empty.png
+114046 ./docs/evidence/github-wrapper-evidence/github-protected-edit-login.png
+246329 ./docs/evidence/github-wrapper-evidence/github-pull-request.png
+158491 ./docs/evidence/github-wrapper-evidence/github-repository.png
+23851 ./docs/evidence/gradle-instrumented.log
+150 ./docs/evidence/installed-release-sha256.txt
+32 ./docs/evidence/release-install.txt
+182 ./docs/evidence/release-launch.txt
+11443 ./docs/evidence/release-logcat.txt
+4536 ./docs/evidence/release-package.txt
+5 ./docs/evidence/release-pid.txt
+76262 ./docs/evidence/release-screenshot.png
+884 ./docs/evidence/webview-provider.txt

@@ -1,0 +1,93 @@
+<?xml version='1.0' encoding='UTF-8' ?>
+<testsuite name="app.githubwebview.locked.AppSurfaceTest" tests="67" failures="2" errors="0" skipped="2" time="171.962" timestamp="2026-11-12T00:21:52" hostname="localhost">
+  <properties>
+    <property name="device" value="emulator-5554 - 14" />
+    <property name="flavor" value="" />
+    <property name="project" value=":app" />
+  </properties>
+  <testcase name="theAppExposesNothingButItsLauncherActivity" classname="app.githubwebview.locked.AppSurfaceTest" time="0.014" />
+  <testcase name="repeatedRequestsReuseTheSameWindow" classname="app.githubwebview.locked.AuthWindowTest" time="6.275" />
+  <testcase name="signInWindowsAreReportedInTheDiagnostics" classname="app.githubwebview.locked.AuthWindowTest" time="0.231" />
+  <testcase name="backClosesTheSignInWindowBeforeAnythingElse" classname="app.githubwebview.locked.AuthWindowTest" time="4.143" />
+  <testcase name="noSignInWindowIsOpenAfterStartup" classname="app.githubwebview.locked.AuthWindowTest" time="3.425" />
+  <testcase name="signInWindowHostsTheWebViewAndCanBeClosed" classname="app.githubwebview.locked.AuthWindowTest" time="4.193" />
+  <testcase name="backNeverLeavesTheApp" classname="app.githubwebview.locked.BackNavigationTest" time="4.135" />
+  <testcase name="legacyBackCallbackIsAlsoSafe" classname="app.githubwebview.locked.BackNavigationTest" time="2.676" />
+  <testcase name="theGuardIsReadyBeforeAnythingLoadsAndRefusesForeignTunnels" classname="app.githubwebview.locked.EgressGuardTest" time="3.356" />
+  <testcase name="aWebSocketToAForeignHostIsRefusedByTheProxy" classname="app.githubwebview.locked.EgressGuardTest" time="4.304" />
+  <testcase name="everyWebViewInTheProcessIsRouted" classname="app.githubwebview.locked.EgressGuardTest" time="4.059" />
+  <testcase name="googleIdentifierInputAndValidationOnlyWhenProviderServesTheForm" classname="app.githubwebview.locked.EmailInputRegressionTest" time="17.746">
+    <skipped />
+  </testcase>
+  <testcase name="githubEmailEntryEditingKeyboardResizeAndClientValidation" classname="app.githubwebview.locked.EmailInputRegressionTest" time="16.013">
+    <failure>java.lang.AssertionError: tap must focus the real input
+at org.junit.Assert.fail(Assert.java:89)
+at org.junit.Assert.assertTrue(Assert.java:42)
+at app.githubwebview.locked.EmailInputRegressionTest.exerciseNativeInput(EmailInputRegressionTest.java:157)
+at app.githubwebview.locked.EmailInputRegressionTest.githubEmailEntryEditingKeyboardResizeAndClientValidation(EmailInputRegressionTest.java:53)
+</failure>
+  </testcase>
+  <testcase name="fileChooserIsRefused" classname="app.githubwebview.locked.EscapeAttemptTest" time="0.154" />
+  <testcase name="geolocationIsRefused" classname="app.githubwebview.locked.EscapeAttemptTest" time="0.104" />
+  <testcase name="startActivityIsRefused" classname="app.githubwebview.locked.EscapeAttemptTest" time="3.246" />
+  <testcase name="incomingIntentsCannotSteerTheApp" classname="app.githubwebview.locked.EscapeAttemptTest" time="3.781" />
+  <testcase name="googleSignInPageIsReachableAndNothingItNeedsIsRefused" classname="app.githubwebview.locked.GoogleSignInLiveTest" time="16.484">
+    <failure>java.lang.AssertionError: tap must focus the real input
+at org.junit.Assert.fail(Assert.java:89)
+at org.junit.Assert.assertTrue(Assert.java:42)
+at app.githubwebview.locked.EmailInputRegressionTest.exerciseNativeInput(EmailInputRegressionTest.java:157)
+at app.githubwebview.locked.GoogleSignInLiveTest.googleSignInPageIsReachableAndNothingItNeedsIsRefused(GoogleSignInLiveTest.java:93)
+</failure>
+  </testcase>
+  <testcase name="reportWhichCaptchaTheSiteReferences" classname="app.githubwebview.locked.GoogleSignInLiveTest" time="6.629" />
+  <testcase name="loadsTheRealSiteAndRunsItsJavaScript" classname="app.githubwebview.locked.LiveGitHubSmokeTest" time="7.973" />
+  <testcase name="publicRepositoryFileCommitIssuePullRequestAndActionsPagesRender" classname="app.githubwebview.locked.LiveGitHubWorkflowTest" time="28.147" />
+  <testcase name="editingAndWorkflowEditingAreAllowedRoutesButRemainAuthenticationGated" classname="app.githubwebview.locked.LiveGitHubWorkflowTest" time="4.038" />
+  <testcase name="thirdPartyLoadIsRefusedAndNeverShown" classname="app.githubwebview.locked.WatchdogRecoveryTest" time="5.715" />
+  <testcase name="internalLoadsAreCheckedAgain" classname="app.githubwebview.locked.WatchdogRecoveryTest" time="2.432" />
+  <testcase name="safeBrowsingIsOn" classname="app.githubwebview.locked.WebViewSettingsTest" time="0.451" />
+  <testcase name="cookiesAreEnabledIncludingThirdPartyOnesForTheAuthService" classname="app.githubwebview.locked.WebViewSettingsTest" time="0.022" />
+  <testcase name="featuresRequiredByTheSiteAreEnabled" classname="app.githubwebview.locked.WebViewSettingsTest" time="0.001" />
+  <testcase name="localFileAndContentAccessIsOff" classname="app.githubwebview.locked.WebViewSettingsTest" time="0.028" />
+  <testcase name="userAgentPreservesThePlatformWebViewIdentity" classname="app.githubwebview.locked.WebViewSettingsTest" time="0.002" />
+  <testcase name="processLossIsReportedAsInterruptedAndRetryIsRevalidated" classname="app.githubwebview.locked.net.BackgroundDownloadServiceTest" time="0.027" />
+  <testcase name="notificationCancelActionStopsTheTransfer" classname="app.githubwebview.locked.net.BackgroundDownloadServiceTest" time="4.532" />
+  <testcase name="inAppCancellationSignalsTheService" classname="app.githubwebview.locked.net.BackgroundDownloadServiceTest" time="3.691" />
+  <testcase name="transferCompletesAfterActivityIsDestroyedAndStatusSurvivesRecreation" classname="app.githubwebview.locked.net.BackgroundDownloadServiceTest" time="6.882" />
+  <testcase name="approvedFileIsSavedIntoTheDownloadsCollection" classname="app.githubwebview.locked.net.FileDownloadTest" time="2.417" />
+  <testcase name="everyUnapprovedLinkIsRefusedBeforeAnyNetwork" classname="app.githubwebview.locked.web.DownloadGuardTest" time="0.051" />
+  <testcase name="anApprovedLinkFailsClosedWhenTheGuardIsNotRunning" classname="app.githubwebview.locked.web.DownloadGuardTest" time="0.044">
+    <skipped />
+  </testcase>
+  <testcase name="githubServiceResourcesAndFramesAreAllowedButNavigationAndRedirectsAreNot" classname="app.githubwebview.locked.web.GitHubResourceRolesTest" time="0.495" />
+  <testcase name="githubAndWidgetResourcesCannotBecomePopupDestinations" classname="app.githubwebview.locked.web.GitHubResourceRolesTest" time="0.652" />
+  <testcase name="everyRefusalIsNamedInTheLogWithHostAndPathOnly" classname="app.githubwebview.locked.web.NavigationGuardTest" time="0.047" />
+  <testcase name="allowsTheSiteItself" classname="app.githubwebview.locked.web.NavigationGuardTest" time="0.029" />
+  <testcase name="refusesThirdPartySubresourcesWithoutSendingThem" classname="app.githubwebview.locked.web.NavigationGuardTest" time="0.0" />
+  <testcase name="refusesCustomSchemes" classname="app.githubwebview.locked.web.NavigationGuardTest" time="0.03" />
+  <testcase name="refusesIframesToUnlistedHosts" classname="app.githubwebview.locked.web.NavigationGuardTest" time="0.003" />
+  <testcase name="refusesThirdPartyIframes" classname="app.githubwebview.locked.web.NavigationGuardTest" time="0.001" />
+  <testcase name="failsClosedOnUnusableRequests" classname="app.githubwebview.locked.web.NavigationGuardTest" time="0.028" />
+  <testcase name="refusesThirdPartyNavigation" classname="app.githubwebview.locked.web.NavigationGuardTest" time="0.0" />
+  <testcase name="allowsWidgetIframesThatAPageNeedsToRender" classname="app.githubwebview.locked.web.NavigationGuardTest" time="0.0" />
+  <testcase name="refusesRedirectsToThirdParties" classname="app.githubwebview.locked.web.NavigationGuardTest" time="0.03" />
+  <testcase name="dataUrlsAreNeverDocuments" classname="app.githubwebview.locked.web.NavigationGuardTest" time="0.001" />
+  <testcase name="allowsPostNavigationsWithoutTouchingThem" classname="app.githubwebview.locked.web.NavigationGuardTest" time="0.003" />
+  <testcase name="refusesLookAlikeHosts" classname="app.githubwebview.locked.web.NavigationGuardTest" time="0.022" />
+  <testcase name="refusesToNavigateTheAppItselfToAWidgetHost" classname="app.githubwebview.locked.web.NavigationGuardTest" time="0.0" />
+  <testcase name="refusesCleartextHttp" classname="app.githubwebview.locked.web.NavigationGuardTest" time="0.028" />
+  <testcase name="embeddedFramesInsideTheSignInWindowLoadInPlace" classname="app.githubwebview.locked.web.PopupBlockingTest" time="0.003" />
+  <testcase name="popupToTheSiteIsReroutedIntoTheSingleWebView" classname="app.githubwebview.locked.web.PopupBlockingTest" time="0.0" />
+  <testcase name="popupToThirdPartyIsRefusedAndNeverAttached" classname="app.githubwebview.locked.web.PopupBlockingTest" time="0.025" />
+  <testcase name="aGoogleAssetHostMayNeverBecomeTheVisibleDocument" classname="app.githubwebview.locked.web.PopupBlockingTest" time="0.0" />
+  <testcase name="popupToASignInHostIsKeptAndShownInApp" classname="app.githubwebview.locked.web.PopupBlockingTest" time="0.001" />
+  <testcase name="finishedWindowsDoNotPileUpAgainstTheOpenWindowLimit" classname="app.githubwebview.locked.web.PopupBlockingTest" time="0.049" />
+  <testcase name="hiddenWindowsAreReleasedImmediately" classname="app.githubwebview.locked.web.PopupBlockingTest" time="0.026" />
+  <testcase name="blankPopupIsNotNavigated" classname="app.githubwebview.locked.web.PopupBlockingTest" time="0.031" />
+  <testcase name="aRefusedFrameInsideTheSignInWindowDoesNotEndTheHandOff" classname="app.githubwebview.locked.web.PopupBlockingTest" time="0.001" />
+  <testcase name="theReturnHopBackToTheSiteStaysInTheSignInWindow" classname="app.githubwebview.locked.web.PopupBlockingTest" time="0.001" />
+  <testcase name="dialogPopupsAreRefused" classname="app.githubwebview.locked.web.PopupBlockingTest" time="0.001" />
+  <testcase name="onCreateWindowHandsOverAHiddenWebView" classname="app.githubwebview.locked.web.PopupBlockingTest" time="0.025" />
+  <testcase name="aPromotedSignInWindowStillRefusesEverythingOutsideTheHandOff" classname="app.githubwebview.locked.web.PopupBlockingTest" time="0.0" />
+  <testcase name="thePageCanCloseItsOwnSignInWindow" classname="app.githubwebview.locked.web.PopupBlockingTest" time="0.0" />
+</testsuite>
