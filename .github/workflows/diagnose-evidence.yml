@@ -1,0 +1,69 @@
+name: Diagnose input-test failure (temporary)
+
+# One-off: copies the evidence of two failed and two passed emulator runs onto this branch so the
+# cause of "tap must focus the real input" can be read instead of guessed. Removed once diagnosed.
+
+on:
+  push:
+    branches:
+      - 'arena/b1548d05-github-web-app-sandboxed'
+    paths:
+      - '.github/workflows/diagnose-evidence.yml'
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  collect:
+    name: Collect evidence from earlier runs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+      - name: Download and reduce
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -uo pipefail
+          python3 -m pip install --quiet pillow
+          rm -rf .diagnostics && mkdir -p .diagnostics
+          # failed: 43125854812 (main), 43125836949 (PR). passed: 43074200221, 43634780295.
+          for run in 43125854812 43125836949 43074200221 43634780295; do
+            out=".diagnostics/$run"; mkdir -p "$out"
+            if ! gh run download "$run" -n instrumented-test-evidence -D "/tmp/ev/$run"; then
+              echo "artifact unavailable" > "$out/UNAVAILABLE.txt"; continue
+            fi
+            ( cd "/tmp/ev/$run" && find . -type f -printf '%s %p\n' | sort -k2 ) > "$out/files.txt"
+            # Per-test full logcat written by the Android Gradle plugin (all tags, not only the app's).
+            find "/tmp/ev/$run" -type f -name 'logcat-*' \( -name '*EmailInput*' -o -name '*GoogleSignIn*' \) \
+              -exec cp {} "$out/" \;
+            find "/tmp/ev/$run" -type f -name 'device-logcat.txt' -exec cp {} "$out/app-logcat.txt" \;
+            find "/tmp/ev/$run" -type f -name 'TEST-*.xml' -exec cp {} "$out/" \;
+            find "/tmp/ev/$run" -type f -name 'gradle-instrumented.log' -exec sh -c 'tail -n 200 "$1" > "$2/gradle-tail.txt"' _ {} "$out" \;
+            RUN_DIR="/tmp/ev/$run" OUT="$out" python3 - <<'PY'
+          import os, glob
+          from PIL import Image
+          src, out = os.environ["RUN_DIR"], os.environ["OUT"]
+          for path in sorted(glob.glob(src + "/**/*.png", recursive=True)):
+              name = os.path.basename(path)
+              if not any(k in name for k in ("login", "google", "github", "tap", "email", "app-screenshot")):
+                  continue
+              try:
+                  image = Image.open(path).convert("RGB")
+                  image.thumbnail((540, 1200))
+                  image.save(os.path.join(out, name[:-4] + ".jpg"), quality=60)
+              except Exception as error:
+                  print("skip", name, error)
+          PY
+          done
+          du -sh .diagnostics/* || true
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f .diagnostics
+          git commit -m "Temporary: evidence of failed and passed input-test runs" || exit 0
+          git push origin "HEAD:${GITHUB_REF_NAME}" || { git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}"; }
