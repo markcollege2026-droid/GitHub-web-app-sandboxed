@@ -167,8 +167,16 @@ are on the allow-list as **resources**, so the app can save their bytes - and no
 * Android 10+ saves into the system **Downloads** collection via `MediaStore` (no permission);
   Android 7-9 saves into the app's own external Downloads folder (`Android/data/app.githubwebview.locked/files/Downloads`, no permission either);
 * the file name is taken from `Content-Disposition`/the URL and sanitised (no directories, control
-  characters or reserved characters), the transfer is capped at **1 GiB**, progress is shown in-app with
-  a Cancel button, and a failed or cancelled transfer deletes its partial file.
+  characters or reserved characters), the transfer is capped at **1 GiB**, and a failed or cancelled
+  transfer deletes its partial file;
+* a download runs **entirely in the background**. The transfer belongs to a foreground service, not to
+  the screen: you keep browsing GitHub while it runs, and it continues if you leave the app. Progress
+  is a slim strip at the bottom of the page (**Hide** puts it away, **Cancel** stops the transfer) and
+  a notification with its own Cancel. Nothing opens a dialog: completion is a short message, and a
+  failure stays on the strip with **Retry** until you retry or dismiss it. Only the two Cancel buttons
+  stop a transfer - Back, tapping elsewhere and Hide do not;
+* one transfer runs at a time. Starting a second one while the first is running shows a short message
+  and leaves the first untouched.
 
 Refused by design: `blob:`/`data:` downloads (they would need a JavaScript bridge, which this project
 does not have), `http://`, any host not on the allow-list, and files over the cap. The app never opens
@@ -176,8 +184,18 @@ the saved file: it is yours to open.
 
 Native file pickers stay disabled. Raw/archive links to resource-only hosts are
 blocked as pages. Uploaded attachments, external images not served through approved proxies,
-third-party SSO, GitHub Pages, Gist, Codespaces, Copilot and arbitrary external sites are not made
-browsable. In-page repository browsing, editing, commits, issues, PRs and Actions depend on the real
+third-party SSO, GitHub Pages, Gist, Codespaces, Copilot Workspace and arbitrary external sites are
+not made browsable.
+
+**GitHub Copilot** (`github.com/copilot` and Copilot inside repository pages) is allowed since
+2026-11-14. Its pages are ordinary `github.com` pages; the service hosts they call - nine exact hosts
+and the regional `production-copilot-host[-<region>].webpubsub.azure.com` real-time hosts - are
+allow-listed as **resources only**, so none of them can become the page. One switch,
+`GitHubAllowlist.ENABLE_COPILOT`, removes all of it again. See
+[docs/DOMAINS.md](docs/DOMAINS.md#github-copilot). Copilot needs a signed-in account with Copilot
+access, so the automated tests prove the policy decisions for these hosts, not a live conversation.
+
+In-page repository browsing, editing, commits, issues, PRs and Actions depend on the real
 website and authentication; an allowlist is not proof these workflows have completed.
 
 The proxy checks tunnel **host and port**, not encrypted paths, SNI or WebSocket messages.

@@ -39,29 +39,9 @@
       "reason": "Gist is a separate site and is intentionally not made browsable or embeddable."
     },
     {
-      "regex": "(api|api\\.individual|api\\.business|api\\.enterprise|proxy\\.individual|proxy\\.business|proxy\\.enterprise)\\.githubcopilot\\.com",
-      "category": "copilot",
-      "reason": "GitHub Copilot APIs. Copilot is intentionally outside this wrapper."
-    },
-    {
-      "host": "copilot-proxy.githubusercontent.com",
-      "category": "copilot",
-      "reason": "GitHub Copilot proxy. Copilot is intentionally outside this wrapper."
-    },
-    {
       "host": "copilot-workspace.githubnext.com",
-      "category": "copilot",
-      "reason": "Copilot Workspace form target. Copilot is intentionally outside this wrapper."
-    },
-    {
-      "host": "copilotprodattachments.blob.core.windows.net",
-      "category": "copilot",
-      "reason": "Copilot chat attachment storage. Copilot is intentionally outside this wrapper."
-    },
-    {
-      "regex": "production-copilot-host(-[a-z0-9-]+)?\\.webpubsub\\.azure\\.com",
-      "category": "copilot",
-      "reason": "Copilot real-time (WebSocket) hosts, one per Azure region. Copilot is intentionally outside this wrapper, so new regions need no change."
+      "category": "separate site",
+      "reason": "Copilot Workspace, a separate website named only as a form target. GitHub Copilot on github.com is allowed (docs/DOMAINS.md); this site is not part of it and is not made browsable."
     },
     {
       "host": "*.rel.tunnels.api.visualstudio.com",

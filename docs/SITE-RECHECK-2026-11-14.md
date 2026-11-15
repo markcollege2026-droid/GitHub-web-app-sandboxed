@@ -20,7 +20,7 @@ full report kept verbatim in [SITE-DRIFT-2026-11-14-vs-2026-10-18.md](SITE-DRIFT
 | Change | Hosts | What the app does | Needs a change? |
 |---|---|---|---|
 | 3 added | `productionresultssa30`, `31`, `32` `.blob.core.windows.net` (Actions artifact/log storage) | Already allowed by the host pattern added on 2026-11-10 | No |
-| 6 added | `production-copilot-host-<region>.webpubsub.azure.com` (austriaeast, centralus, centralus-02, eastasia, westus, westus3) | Refused: Copilot is deliberately outside this app | No |
+| 6 added | `production-copilot-host-<region>.webpubsub.azure.com` (austriaeast, centralus, centralus-02, eastasia, westus, westus3) | Refused at the time of this recheck. **Allowed later the same day** at the owner's request, see [DOMAINS.md](DOMAINS.md#github-copilot) | Then: no |
 | 0 removed | - | - | No |
 
 In the Android emulator (real WebView), the sub-resource refusals published by the run were the ones

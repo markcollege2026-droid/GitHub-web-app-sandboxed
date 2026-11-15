@@ -15,7 +15,7 @@ It answers three separate questions and never mixes them up:
    (GitHubAllowlist.java) and the reviewed refusals (docs/site-reviewed-exclusions.json):
 
      ALLOWED     exact host on the allow-list
-     PATTERN     matched by the one anchored host pattern on the allow-list
+     PATTERN     matched by an anchored host pattern on the allow-list
      EXCLUDED    deliberately refused, with the recorded reason
      UNREVIEWED  none of the above - a person has to decide. This fails the job (exit 1).
 

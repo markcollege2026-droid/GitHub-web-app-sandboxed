@@ -111,7 +111,7 @@ public final class PolicyCases {
             doc(cases, host + " never a top-level page", resource, false, BlockReason.DOCUMENT_NOT_ALLOWED);
         }
         for (String host : new String[]{"docs.github.com", "gist.github.com", "example.github.io",
-                "collector.github.com", "api.githubcopilot.com", "arena.ai", "example.s3.amazonaws.com",
+                "collector.github.com", "copilot-workspace.githubnext.com", "arena.ai", "example.s3.amazonaws.com",
                 "example.blob.core.windows.net", "appleid.apple.com", "company.okta.com"}) {
             both(cases, "unapproved destination " + host, "https://" + host + "/", false, BlockReason.HOST_NOT_ALLOWED);
         }

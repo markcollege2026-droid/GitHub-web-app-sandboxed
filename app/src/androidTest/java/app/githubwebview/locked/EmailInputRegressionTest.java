@@ -160,7 +160,10 @@ public class EmailInputRegressionTest {
             tapFocused = LivePageSupport.waitFor(scenario, fieldHasFocus, 8_000);
             if (tapFocused) break;
             // This assertion failed in two CI runs that passed on an identical commit, on the GitHub
-            // form and the Google form alike, so record WHAT was in front instead of guessing.
+            // form and the Google form alike. Their screenshots show the cause: the emulator's
+            // "Pixel Launcher isn't responding" system dialog was in front and took the touch.
+            // LivePageSupport.tapElement now closes such a dialog before tapping; this records what
+            // was in front if a tap is still lost, so the next cause is read rather than guessed.
             String window = LivePageSupport.currentFocusWindow();
             boolean foreign = !window.contains("app.githubwebview.locked/");
             Log.i(TAG, "input probe " + name + " tap " + attempt + " did not focus the field; focused window="

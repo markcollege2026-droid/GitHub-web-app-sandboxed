@@ -45,20 +45,19 @@
       "github.com"
     ]
   ],
-  "behavioralException": "Two recorded exceptions. WebViewHardening: remove the inherited user-agent masking block, retaining the genuine platform WebView UA. MainActivity: the user-facing text for a refused destination and for a refused download (onLoadError now asks the policy and reports the refused host via the existing overlay; onDownloadBlocked uses the same overlay and states that nothing was saved). No allow-list entry, decision, permission, capability or load path changes.",
+  "behavioralException": "Two recorded exceptions. WebViewHardening: remove the inherited user-agent masking block, retaining the genuine platform WebView UA. MainActivity: the user-facing text for a refused destination and for a refused download (onLoadError now asks the policy and reports the refused host via the existing overlay; onDownloadBlocked uses the same overlay and states that nothing was saved). No allow-list entry, decision, permission, capability or load path changes. Later reviewed changes are recorded per file under reviewedException and addedProductionFiles. Site policy, 2026-11-14 (GitHubAllowlist, the configuration file): GitHub Copilot is allowed at the owner's request - nine exact resource-only hosts and one anchored resource-only pattern for the regional Copilot real-time hosts; none can become a page, and ENABLE_COPILOT removes them all.",
   "files": {
     "app/src/main/java/app/githubwebview/locked/MainActivity.java": {
       "upstreamPath": "app/src/main/java/app/arenawebview/locked/MainActivity.java",
       "upstreamFileSha256": "32a625997c40054079b95a4d4533656d0edaecbe52d62e90570a18f08fbd2921",
       "adaptedCodeSha256": "f54811715ebe52aafae1b026872bc7a05fd2aa2ea8e10ebc67adffed2f8e350f",
       "reviewedException": {
-        "summary": "Tracks the last verified GitHub page and download lifecycle; watchdog/recovery preserve workflow context during resource-only artifact redirects and return to the last verified page for unauthorized navigation.",
-        "rationale": "Fixes the reported Actions artifact download homepage reset at its navigation-state root. A resource-only host reached during an active download is not a page navigation; the watchdog suppresses recovery for that case and records no artifact host as a page. Actual unauthorized top-level navigation remains blocked and recovers to the last verified approved page. Download completion/failure/cancellation/refusal balances state. Signed URLs are not logged by recovery diagnostics. The allowlist remains narrow and resource-only; EgressGuard, per-hop validation, redirect and size protections are unchanged. This reviewed extension makes the Activity a client of a lifecycle-independent foreground service and renders persisted download status without owning or cancelling the service worker on Activity destruction.",
+        "summary": "Tracks the last verified GitHub page and download lifecycle; watchdog/recovery preserve workflow context during resource-only artifact redirects and return to the last verified page for unauthorized navigation. Download progress and failure are shown on a non-modal strip, never a dialog.",
+        "rationale": "Fixes the reported Actions artifact download homepage reset at its navigation-state root. A resource-only host reached during an active download is not a page navigation; the watchdog suppresses recovery for that case and records no artifact host as a page. Actual unauthorized top-level navigation remains blocked and recovers to the last verified approved page. Download completion/failure/cancellation/refusal balances state. Signed URLs are not logged by recovery diagnostics. The allowlist remains narrow and resource-only; EgressGuard, per-hop validation, redirect and size protections are unchanged. This reviewed extension makes the Activity a client of a lifecycle-independent foreground service and renders persisted download status without owning or cancelling the service worker on Activity destruction. 2026-11-14: download status is rendered without a window of its own. The modal \"Downloading\" dialog, which made the page unusable for the whole transfer and cancelled the transfer when dismissed, is replaced by the non-modal DownloadStrip child view plus the existing notification; a failure is shown on the same strip with Retry instead of a dialog; and the 'already shown' marker moved from an Activity field to DownloadStateStore so a newly created Activity no longer replays the last terminal status. Presentation only: the request path (DownloadPlan, the notification-permission gate, BackgroundDownloadService, EgressGuard), the one-transfer-at-a-time rule and every policy decision are unchanged.",
         "requiredTokens": [
           "verdict",
           "FileDownloads",
           "onDownloadSaved",
-          "downloadProgressBar",
           "\"Download refused: nothing was saved\"",
           "\"Download cancelled: nothing was saved\"",
           "offerToSaveInstead",
@@ -81,13 +80,23 @@
           "retryLastDownload",
           "cancelBackgroundDownload",
           "onStart",
-          "onStop"
+          "onStop",
+          "DownloadStrip",
+          "downloadStrip",
+          "showProgress",
+          "showFailure",
+          "acknowledgeDownloadStatus",
+          "acknowledgedAt"
         ],
         "forbiddenTokens": [
           "\"Downloads are disabled in this app\"",
-          "\"loadVerifiedDestination(policy.primaryUrl(), \\\"watchdog\\\")\""
+          "\"loadVerifiedDestination(policy.primaryUrl(), \\\"watchdog\\\")\"",
+          "downloadDialog",
+          "setOnCancelListener",
+          "\"Downloading\"",
+          "lastRenderedDownloadUpdate"
         ],
-        "adaptedCodeSha256": "6cba724680c0aaf2796de4af776fe309d5f04af1f0a3cf4f9828685e8b049ffb"
+        "adaptedCodeSha256": "3fd2f68bf8016128cd7c4dcce33a5513133b636a6575adfa806ced6d28a98a5d"
       }
     },
     "app/src/main/java/app/githubwebview/locked/net/EgressProxy.java": {
@@ -299,11 +308,15 @@
     },
     "app/src/main/java/app/githubwebview/locked/net/BackgroundDownloadService.java": {
       "purpose": "Private foreground service owns the single download worker independently of Activity lifecycle; notification progress/cancel, persisted status, guarded retry after process recreation, and no sticky stale-URL restart.",
-      "codeSha256": "8cbdb449396032b463ffce2932ec6c984fe53328c4d5d9a5315eecd96c139785"
+      "codeSha256": "c15c2953d74b38e7ba072b504fb299e142da1539219f4055352d562acfe35752"
     },
     "app/src/main/java/app/githubwebview/locked/net/DownloadStateStore.java": {
-      "purpose": "App-private persisted download status and retry metadata; interrupted transfers remain incomplete and stale temporary destinations are cleaned before user-requested revalidation.",
-      "codeSha256": "3c33d0e848641dde8129c603be593a5800273b0aa42cbd1d968860ddfc4f5dcb"
+      "purpose": "App-private persisted download status and retry metadata; interrupted transfers remain incomplete and stale temporary destinations are cleaned before user-requested revalidation. Also records which finished status the user has already been shown, so a later Activity does not present it again.",
+      "codeSha256": "e75b4119eb11ef59213ff0d7f2162e116d10daa60aa99e53432af2a50da05628"
+    },
+    "app/src/main/java/app/githubwebview/locked/ui/DownloadStrip.java": {
+      "purpose": "Non-modal in-app view of a background download: a slim strip at the bottom edge with progress, Hide and Cancel, or a failure with Retry and Dismiss. A plain child view that never takes window focus, so the page stays usable during a transfer. Holds no download state and performs no network, storage or navigation work.",
+      "codeSha256": "5db98d88d3b03698a520991c09e219042cbd27783e773e9708ca40c65db6ba94"
     }
   }
 }

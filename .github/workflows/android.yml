@@ -243,6 +243,14 @@ jobs:
             mkdir -p docs/evidence
             adb logcat -c || true
             adb shell settings put secure show_ime_with_hard_keyboard 1
+            # Runs 43125836949 and 43125854812 failed because the emulator put its Pixel Launcher
+            # not-responding dialog over the app, and that system dialog took the touch of the two
+            # input tests (it is visible in their github-login-empty.png). With this setting Android
+            # ends a non-responding background app instead of asking; nothing about the app under
+            # test changes. Close any dialog that is already up, and record what is in front.
+            adb shell settings put global hide_error_dialogs 1
+            adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS || true
+            adb shell dumpsys window | grep -E "mCurrentFocus|mFocusedApp" | tee docs/evidence/window-focus-before-tests.txt || true
             adb shell dumpsys webviewupdate > docs/evidence/webview-provider.txt
             echo "::notice title=WebView provider::$(tr '\n' ' ' < docs/evidence/webview-provider.txt)"
             adb shell getprop ro.build.version.release > docs/evidence/android-version.txt
